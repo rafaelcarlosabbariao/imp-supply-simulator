@@ -1,0 +1,13 @@
+protocol,depot_name,country_name,du_description,inventory_status,qa_status,depot_inventory_count,retest_date_inv,lot_id_inv
+TRIAL-118,EMEA Depot,EMEA,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,4553,2027-12-31,TRIALOT1027
+TRIAL-118,EMEA Depot,EMEA,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,10910,2027-12-31,TRIALOT1028
+TRIAL-118,EMEA Depot,EMEA,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,148,2028-12-30,TRIALOT1029
+TRIAL-118,EMEA Depot,EMEA,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,50,2029-12-30,TRIALOT1030
+TRIAL-118,US Central Depot,US,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,6712,2029-12-30,TRIALOT1031
+TRIAL-118,US Central Depot,US,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,16656,2028-12-30,TRIALOT1032
+TRIAL-118,US Central Depot,US,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,126,2028-12-30,TRIALOT1033
+TRIAL-118,US Central Depot,US,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,50,2028-12-30,TRIALOT1034
+TRIAL-201,APAC Depot,APAC,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,4108,2028-12-30,TRIALOT1035
+TRIAL-201,APAC Depot,APAC,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,2964,2029-12-30,TRIALOT1036
+TRIAL-201,US Central Depot,US,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,3724,2027-12-31,TRIALOT1037
+TRIAL-201,US Central Depot,US,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,3625,2028-12-30,TRIALOT1038

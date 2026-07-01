@@ -1,0 +1,11 @@
+# Netlify serves the static showcase site in site/ (no build step).
+# The interactive Shiny app runs from the repo root; this is the portfolio page.
+[build]
+  publish = "site"
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"

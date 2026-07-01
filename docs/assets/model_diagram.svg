@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#5b7b9a"/>
+    </marker>
+    <marker id="arrowR" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#B00020"/>
+    </marker>
+    <style>
+      .st{fill:#eaf1f8;stroke:#34568B;stroke-width:1.5;rx:10}
+      .abs{fill:#f3e6e6;stroke:#B00020;stroke-width:1.5}
+      .lab{font-size:13px;fill:#1f2d3d;font-weight:600;text-anchor:middle}
+      .sub{font-size:11px;fill:#5b6b7d;text-anchor:middle}
+      .p{font-size:11px;fill:#5b7b9a;text-anchor:middle}
+      .pr{font-size:11px;fill:#B00020;text-anchor:middle}
+      .title{font-size:15px;fill:#1f2d3d;font-weight:700}
+      .cap{font-size:12px;fill:#5b6b7d}
+      .edge{stroke:#5b7b9a;stroke-width:1.6;fill:none}
+      .edgeR{stroke:#B00020;stroke-width:1.4;fill:none;stroke-dasharray:4 3}
+    </style>
+  </defs>
+
+  <text x="30" y="34" class="title">Per-subject Markov chain of visit states</text>
+  <text x="30" y="54" class="cap">Each enrolled subject moves through dosing cycles; at every visit the protocol's dispensing units are drawn from inventory.</text>
+
+  <!-- States row -->
+  <!-- Screening -->
+  <rect x="30" y="90" width="120" height="58" rx="10" class="st"/>
+  <text x="90" y="115" class="lab">Screening</text>
+  <text x="90" y="133" class="sub">enrolled</text>
+
+  <!-- Randomization / Cycle 1 -->
+  <rect x="210" y="90" width="140" height="58" rx="10" class="st"/>
+  <text x="280" y="115" class="lab">Randomization</text>
+  <text x="280" y="133" class="sub">Cycle 1 · dispense</text>
+
+  <!-- Cycle k -->
+  <rect x="410" y="90" width="140" height="58" rx="10" class="st"/>
+  <text x="480" y="115" class="lab">Cycle k</text>
+  <text x="480" y="133" class="sub">dispense DUs</text>
+
+  <!-- Cycle N -->
+  <rect x="610" y="90" width="140" height="58" rx="10" class="st"/>
+  <text x="680" y="115" class="lab">Cycle N</text>
+  <text x="680" y="133" class="sub">last on-treatment</text>
+
+  <!-- Completed (absorbing) -->
+  <rect x="810" y="90" width="120" height="58" rx="10" class="abs"/>
+  <text x="870" y="115" class="lab">Completed</text>
+  <text x="870" y="133" class="sub">absorbing</text>
+
+  <!-- Discontinued (absorbing) -->
+  <rect x="410" y="260" width="140" height="58" rx="10" class="abs"/>
+  <text x="480" y="285" class="lab">Discontinued</text>
+  <text x="480" y="303" class="sub">absorbing</text>
+
+  <!-- forward edges -->
+  <path d="M150,119 L206,119" class="edge" marker-end="url(#arrow)"/>
+  <text x="178" y="110" class="p">p_rand</text>
+  <path d="M350,119 L406,119" class="edge" marker-end="url(#arrow)"/>
+  <text x="378" y="110" class="p">1</text>
+  <path d="M550,119 L606,119" class="edge" marker-end="url(#arrow)"/>
+  <text x="578" y="110" class="p">stay</text>
+  <path d="M750,119 L806,119" class="edge" marker-end="url(#arrow)"/>
+  <text x="778" y="110" class="p">1</text>
+
+  <!-- self loop on Cycle k (cadence) -->
+  <path d="M455,90 C445,55 515,55 505,90" class="edge" marker-end="url(#arrow)"/>
+  <text x="480" y="52" class="p">every cycle_length days (± window)</text>
+
+  <!-- discontinue edges -->
+  <path d="M280,148 C280,210 470,210 470,258" class="edgeR" marker-end="url(#arrowR)"/>
+  <path d="M480,148 L480,258" class="edgeR" marker-end="url(#arrowR)"/>
+  <path d="M680,148 C680,210 495,210 495,258" class="edgeR" marker-end="url(#arrowR)"/>
+  <text x="590" y="205" class="pr">p_discontinue (from any active state)</text>
+
+  <!-- screen fail -->
+  <path d="M90,148 C90,210 400,215 405,283" class="edgeR" marker-end="url(#arrowR)"/>
+  <text x="150" y="240" class="pr">screen fail</text>
+
+  <!-- Monte Carlo wrapper -->
+  <rect x="30" y="360" width="900" height="130" rx="12" fill="#f7f9fb" stroke="#c9d6e2" stroke-width="1.2"/>
+  <text x="50" y="388" class="title">Monte Carlo wrapper</text>
+  <text x="50" y="410" class="cap">The chain above is stochastic (random enrollment dates, visit-window jitter, discontinuation). Simulating it</text>
+  <text x="50" y="428" class="cap">N independent times and averaging turns one uncertain trajectory into an expected daily demand curve.</text>
+
+  <!-- pipeline chips -->
+  <g>
+    <rect x="50" y="446" width="150" height="30" rx="6" fill="#eaf1f8" stroke="#34568B"/>
+    <text x="125" y="466" class="lab">N × simulate chain</text>
+    <path d="M200,461 L236,461" class="edge" marker-end="url(#arrow)"/>
+    <rect x="238" y="446" width="150" height="30" rx="6" fill="#eaf1f8" stroke="#34568B"/>
+    <text x="313" y="466" class="lab">units dispensed / day</text>
+    <path d="M388,461 L424,461" class="edge" marker-end="url(#arrow)"/>
+    <rect x="426" y="446" width="170" height="30" rx="6" fill="#eaf1f8" stroke="#34568B"/>
+    <text x="511" y="466" class="lab">(s,S) inventory engine</text>
+    <path d="M596,461 L632,461" class="edge" marker-end="url(#arrow)"/>
+    <rect x="634" y="446" width="176" height="30" rx="6" fill="#f3e6e6" stroke="#B00020"/>
+    <text x="722" y="466" class="lab">stockout / at-risk alerts</text>
+  </g>
+</svg>

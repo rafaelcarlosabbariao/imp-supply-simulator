@@ -1,0 +1,32 @@
+# R / RStudio
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj.bak
+
+# Rendered notebook / report output
+*.nb.html
+/output/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude / tooling scratch
+.claude/scheduled_tasks.lock
+
+# Netlify
+.netlify/
+
+# NOTE: datasets/ is committed on purpose -- it contains synthetic sample data
+# (see scripts/generate_sample_datasets.py). Never commit real data-warehouse
+# extracts or any file with live clinical-trial / patient data here.

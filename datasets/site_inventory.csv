@@ -1,0 +1,27 @@
+protocol_id,center_number,country_name,du_description,inventory_status,qa_status,site_inventory_count,retest_date_inv,lot_id_inv
+TRIAL-118,1001,USA,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,723,2024-06-29,TRIALOT1001
+TRIAL-118,1001,USA,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,214,2024-04-30,TRIALOT1002
+TRIAL-118,1001,USA,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,6,2024-04-30,TRIALOT1003
+TRIAL-118,1001,USA,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,125,2024-12-31,TRIALOT1004
+TRIAL-118,1002,Canada,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,141,2024-04-30,TRIALOT1005
+TRIAL-118,1002,Canada,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,607,2024-04-30,TRIALOT1006
+TRIAL-118,1002,Canada,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,3,2024-09-27,TRIALOT1007
+TRIAL-118,1002,Canada,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,1,2025-06-24,TRIALOT1008
+TRIAL-118,1003,Israel,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,166,2024-06-29,TRIALOT1009
+TRIAL-118,1003,Israel,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,435,2024-06-29,TRIALOT1010
+TRIAL-118,1003,Israel,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,11,2024-09-27,TRIALOT1011
+TRIAL-118,1003,Israel,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,1,2024-09-27,TRIALOT1012
+TRIAL-118,1004,Mexico,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,27,2024-06-29,TRIALOT1013
+TRIAL-118,1004,Mexico,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,161,2024-09-27,TRIALOT1014
+TRIAL-118,1004,Mexico,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,7,2024-09-27,TRIALOT1015
+TRIAL-118,1004,Mexico,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,1,2024-06-29,TRIALOT1016
+TRIAL-118,1005,Argentina,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,25,2025-06-24,TRIALOT1017
+TRIAL-118,1005,Argentina,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,50,2024-09-27,TRIALOT1018
+TRIAL-118,1005,Argentina,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,4,2024-04-30,TRIALOT1019
+TRIAL-118,1005,Argentina,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,1,2024-06-29,TRIALOT1020
+TRIAL-201,1001,USA,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,348,2024-12-31,TRIALOT1021
+TRIAL-201,1001,USA,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,225,2025-06-24,TRIALOT1022
+TRIAL-201,1002,Korea,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,73,2024-12-31,TRIALOT1023
+TRIAL-201,1002,Korea,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,86,2025-06-24,TRIALOT1024
+TRIAL-201,1003,Japan,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,12,2025-06-24,TRIALOT1025
+TRIAL-201,1003,Japan,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,78,2024-09-27,TRIALOT1026

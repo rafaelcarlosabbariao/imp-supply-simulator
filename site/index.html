@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>IMP Supply Simulator — Monte-Carlo stockout prediction for clinical trials</title>
+<meta name="description" content="Monte-Carlo demand forecasting and inventory-stockout prediction for clinical trials. Simulates patient demand, projects drug inventory at every site, and flags where and when a site will run out."/>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#152233; --ink:#e8eef6; --muted:#9db0c6;
+    --line:#25374d; --accent:#4f9cf9; --stockout:#ff5a68; --risk:#ffb02e; --ok:#3ecf8e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--ink);line-height:1.6}
+  a{color:var(--accent);text-decoration:none}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 22px}
+  header{padding:80px 0 40px;text-align:center;
+    background:radial-gradient(1200px 500px at 50% -10%, #1c2f47 0%, var(--bg) 60%)}
+  .badge{display:inline-block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 12px;margin-bottom:22px}
+  h1{font-size:44px;line-height:1.1;margin:0 0 14px;font-weight:800;letter-spacing:-.02em}
+  h1 span{background:linear-gradient(90deg,#4f9cf9,#3ecf8e);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{font-size:19px;color:var(--muted);max-width:720px;margin:0 auto 28px}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  .btn{padding:11px 20px;border-radius:10px;font-weight:600;border:1px solid var(--line);
+    background:var(--panel);color:var(--ink);transition:.15s}
+  .btn:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .btn.primary{background:linear-gradient(90deg,#4f9cf9,#3f7fe0);border-color:transparent;color:#fff}
+  .stats{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin:40px 0 8px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 22px;min-width:150px}
+  .stat b{display:block;font-size:26px}
+  .stat.s b{color:var(--stockout)} .stat.r b{color:var(--risk)} .stat.o b{color:var(--ok)}
+  .stat small{color:var(--muted);font-size:12px}
+  section{padding:52px 0;border-top:1px solid var(--line)}
+  h2{font-size:28px;margin:0 0 8px;letter-spacing:-.01em}
+  .lead{color:var(--muted);max-width:760px;margin:0 0 26px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .frame{width:100%;height:520px;border:0;background:#fff}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+  .feat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
+  .feat h3{margin:0 0 6px;font-size:16px}
+  .feat p{margin:0;color:var(--muted);font-size:14px}
+  .diagram{background:#fff;border-radius:14px;padding:16px}
+  .imgrow{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .imgrow img{width:100%;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .note{font-size:13px;color:var(--muted);margin-top:12px}
+  code{background:#0b1220;border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:13px}
+  footer{padding:44px 0 70px;color:var(--muted);border-top:1px solid var(--line);text-align:center}
+  @media(max-width:640px){h1{font-size:32px}.imgrow{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="badge">Clinical Supply Chain · Monte Carlo · R / Shiny</div>
+    <h1>Know which trial site will<br><span>run out of drug — before it does.</span></h1>
+    <p class="sub">A Monte-Carlo simulator that models patient demand as a Markov chain, projects
+      investigational-drug (IMP) inventory at every site and depot, and flags stockouts weeks ahead.</p>
+    <div class="cta">
+      <a class="btn primary" id="repo" href="#" target="_blank">View on GitHub</a>
+      <a class="btn" id="article" href="#" target="_blank">Read the write-up</a>
+      <a class="btn" href="#map">See the live map ↓</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>2</b><small>demo studies</small></div>
+      <div class="stat"><b>8</b><small>sites tracked</small></div>
+      <div class="stat s"><b>3</b><small>stockouts flagged</small></div>
+      <div class="stat r"><b>3</b><small>at&nbsp;risk</small></div>
+      <div class="stat o"><b>2</b><small>healthy</small></div>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>The problem</h2>
+    <p class="lead">Running out of investigational drug at a site stalls a trial: patients miss doses and
+      visits slip. But demand is stochastic — patients enroll at random times, move through dosing cycles
+      at their own pace, and sometimes discontinue — while supply fights lot expiry, shipping lead times,
+      and depot limits. This tool models both sides end-to-end so problems are visible in advance.</p>
+  </div>
+</section>
+
+<section id="map">
+  <div class="wrap">
+    <h2>Interactive site map</h2>
+    <p class="lead">Every clinical site, coloured by its worst IMP status. Hover for min days-of-supply and
+      the projected stockout date. <b style="color:var(--stockout)">Red</b> = stockout,
+      <b style="color:var(--risk)">amber</b> = at risk, <b style="color:var(--ok)">green</b> = healthy.</p>
+    <div class="card"><iframe class="frame" src="map.html" title="Interactive site map"></iframe></div>
+    <p class="note">Rendered from a real 5-trial Monte-Carlo run over the two sample studies.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="lead">A <b>Markov chain</b> describes one patient's path through dosing cycles; a
+      <b>Monte-Carlo</b> loop runs it across all patients many times to get an expected daily-demand
+      curve, which drives an <b>(s,&nbsp;S) inventory engine</b> with FEFO consumption, lot expiry, and
+      depot resupply.</p>
+    <div class="diagram"><img src="assets/model_diagram.svg" alt="Monte Carlo + Markov chain model" style="width:100%"/></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What it does</h2>
+    <div class="grid">
+      <div class="feat"><h3>Simulate demand</h3><p>Monte-Carlo enrollment → per-patient Markov dosing chain → units dispensed per site/DU/day.</p></div>
+      <div class="feat"><h3>Project supply</h3><p>Day-by-day (s,S) policy with FEFO, lot expiry, safety stock, lead times, and depot resupply.</p></div>
+      <div class="feat"><h3>Flag risk</h3><p>Every site × dispensing-unit tagged OK / AT&nbsp;RISK / STOCKOUT with the exact first-stockout date.</p></div>
+      <div class="feat"><h3>Map &amp; drill down</h3><p>Interactive world map; click a site for its per-DU detail and inventory-over-time chart.</p></div>
+      <div class="feat"><h3>Portfolio view</h3><p>KPI rollup across every study and site at once — nothing hides.</p></div>
+      <div class="feat"><h3>Supply-chain news</h3><p>Live, risk-tagged headlines (strikes, recalls, cold-chain) next to your projections.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>From the engine</h2>
+    <div class="imgrow">
+      <img src="assets/demo_inventory.png" alt="Inventory projection saw-tooth"/>
+      <img src="assets/demo_demand.png" alt="Simulated demand by dispensing unit"/>
+    </div>
+    <p class="note">Left: projected on-hand inventory with resupply cycles; red points are stockout days.
+      Right: simulated monthly demand by dispensing unit.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Run it yourself</h2>
+    <p class="lead">The full interactive Shiny app runs locally in one command:</p>
+    <p><code>R -e "shiny::runApp('.', launch.browser = TRUE)"</code></p>
+    <p class="lead">Or headless across all protocols:
+      <code>Rscript scripts/run_simulation.R 5 2026-12-31 2024-01-01</code></p>
+    <p class="note">This page is a static showcase; the live server app runs from the repository.
+      All sample data is synthetic.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p><a id="repo2" href="#">GitHub repository</a> · <a id="article2" href="#">Technical write-up</a></p>
+    <p>Built by Rafael Carlos Abbariao · R · Shiny · plotly · a hand-rolled (s,&nbsp;S) inventory engine</p>
+  </div>
+</footer>
+
+<script>
+  // Central place to set links once deployed.
+  var REPO = "https://github.com/rafaelcarlosabbariao/imp-supply-simulator";
+  var ARTICLE = "#"; // set to Medium URL when published
+  ["repo","repo2"].forEach(function(id){var e=document.getElementById(id); if(e) e.href=REPO;});
+  ["article","article2"].forEach(function(id){var e=document.getElementById(id); if(e) e.href=ARTICLE;});
+</script>
+</body>
+</html>

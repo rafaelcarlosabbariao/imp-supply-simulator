@@ -1,0 +1,11 @@
+datasource,prt_code_vct,tgp_code_vct,desc_tgp,vis_visit_num_vct,vis_desc,cnt_container_type_id_vct,desc_cnt,csds_du_type_id_cnt,dispensing_set_id,qty_vct,qty_tts,cycle_length,remaining_cycles,vis_dur_from_anchor,vis_dur_window_plus,vis_dur_window_minus,sequence_vct
+IRT-Alpha,TRIAL-201,1Vial,1Vial treatment group,C1D1,Randomization/Cycle 1 Day 1,5001,Diluent for Compound-A 15 mg/vial (1x/carton),5001,1Vial-SET,1.0,1.0,15,20,0,3,3,1
+IRT-Alpha,TRIAL-201,1Vial,1Vial treatment group,C1D1,Randomization/Cycle 1 Day 1,5002,Compound-A 15 mg/vial (1x/carton),5002,1Vial-SET,1.0,1.0,15,20,0,3,3,1
+IRT-Beta,TRIAL-118,Combo5,Combo5 treatment group,C1D1,Randomization/Cycle 1 Day 1,5003,Compound-B 15 mg bottle 70 ct,5003,Combo5-SET,2.0,2.0,21,26,0,3,3,1
+IRT-Beta,TRIAL-118,Combo5,Combo5 treatment group,C1D1,Randomization/Cycle 1 Day 1,5004,Compound-C 100 mg Bottle 30 ct,5004,Combo5-SET,5.0,5.0,21,26,0,3,3,1
+IRT-Beta,TRIAL-118,Combo7,Combo7 treatment group,C1D1,Randomization/Cycle 1 Day 1,5005,Compound-B 15 mg bottle 70 ct,5005,Combo7-SET,2.0,2.0,21,26,0,3,3,1
+IRT-Beta,TRIAL-118,Combo7,Combo7 treatment group,C1D1,Randomization/Cycle 1 Day 1,5006,Compound-C 100 mg Bottle 30 ct,5006,Combo7-SET,4.0,4.0,21,26,0,3,3,1
+IRT-Beta,TRIAL-118,Combo7,Combo7 treatment group,C1D1,Randomization/Cycle 1 Day 1,5007,Compound-C 25 mg Bottle 30 ct,5007,Combo7-SET,2.0,2.0,21,26,0,3,3,1
+IRT-Beta,TRIAL-118,DDI,DDI treatment group,C1D1,Randomization/Cycle 1 Day 1,5008,Compound-B 15 mg bottle 70 ct,5008,DDI-SET,2.0,2.0,21,26,0,3,3,1
+IRT-Beta,TRIAL-118,DDI,DDI treatment group,C1D1,Randomization/Cycle 1 Day 1,5009,Compound-C 100 mg Bottle 30 ct,5009,DDI-SET,5.0,5.0,21,26,0,3,3,1
+IRT-Beta,TRIAL-118,DDI,DDI treatment group,C1D1,Randomization/Cycle 1 Day 1,5010,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),5010,DDI-SET,0.1,0.1,1,1,0,3,3,1
