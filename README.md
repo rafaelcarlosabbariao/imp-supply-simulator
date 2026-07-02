@@ -6,8 +6,7 @@ and it simulates patient demand, projects drug (IMP) inventory forward at every
 site and depot, and tells you **where and when a site will run out** — with a
 world map, a portfolio dashboard, and a live supply-chain news feed.
 
-<!-- Replace with your deployed link once live -->
-🔗 **Live showcase:** _`<netlify-url>`_ · 📄 **Write-up:** _`<medium-url>`_
+🔗 **Live showcase:** **[imp-supply-chain-simulator.netlify.app](https://imp-supply-chain-simulator.netlify.app)** · 📄 **Write-up:** _coming soon_
 
 ![Clinical site IMP status map](docs/assets/demo_map.png)
 
