@@ -27,5 +27,6 @@ if (capabilities("cairo")) {
 
 # Shared engine: single source of truth for the app, the notebook, and the
 # headless runner (R/run_simulation.R).
+source("R/titration.R", local = FALSE)
 source("R/simulation.R", local = FALSE)
 source("R/inventory.R", local = FALSE)

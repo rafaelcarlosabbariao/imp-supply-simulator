@@ -75,6 +75,70 @@ individually-plausible patient trajectories.
 
 ---
 
+## 2a. Dose titration, and why it is still Markov
+
+Not every protocol doses at target from visit 1. Where the CSP defines a
+**titration ladder**, the first `N` visits (usually 6) step the dose up while
+the patient tolerates it, hold it where they only partly tolerate it, and step
+it back down where they do not. A **missed visit dispenses nothing** and sends
+the patient back to their floor, restarting the titration window.
+
+The floor **ratchets**. It starts at rung 1, and the first time a patient
+*tolerates once* at the CSP's tolerance rung — attends at that rung and does
+not down-titrate — the floor moves up to it permanently. A patient who has
+never tolerated the tolerance dose restarts from the ground; one who has
+restarts from the tolerance rung.
+
+Read literally, "restart from the ground if they have **never** reached the
+tolerance dose" is a statement about a patient's whole history, and so appears
+to break the Markov property of §1. It does not. It is Markov on the
+**enlarged state**
+
+$$s = (\text{dose rung},\; \text{ratcheted},\; \text{window position})$$
+
+because `ratcheted` is exactly the one bit of history the transition rule
+needs. Carrying that bit is what makes both the simulator and the exact
+recursion below correct; dropping it is the most likely way to get a
+plausible-looking but wrong answer.
+
+**Why supply cares.** A rung is usually a *different dispensing unit*, not just
+a different quantity of one — a 15 mg vial and a 100 mg bottle are separate DUs
+with separate lots and separate expiry. So titration reallocates demand *across
+DUs*, and a restart pulls the low-dose DU months after the depot stopped
+forecasting for it. The `(s, S)` reorder point in §4 keys off a **trailing
+average** demand rate, which is precisely the estimator that lags that kind of
+step change.
+
+**The tolerance rung's effect is not monotone.** Placed at rung 1 the ratchet
+is a no-op — the floor already starts there — so every restart goes to ground
+and low-dose exposure is at its maximum. Placed at the top rung it almost never
+fires before a miss knocks the patient back, so exposure climbs again. The
+minimum sits in the middle, where the rung is both reachable and protective. A
+study lead who sets the tolerance dose at target to "make them prove it" buys
+close to the same low-dose supply exposure as having no ratchet at all.
+
+### Solving it exactly
+
+The enlarged state space is small — `L` rungs × 2 ratchet states × `N+1` window
+positions, about 84 states for a six-rung ladder — so the distribution over
+states can be propagated forward analytically, one matrix multiply per visit,
+instead of being sampled:
+
+$$\pi_{t+1} = \pi_t P, \qquad \mathbb{E}[\text{units at } t] = \pi_t \cdot e$$
+
+`expected_demand()` does this. It is **O(1) in patient count** (1,000 patients
+and 10,000,000 cost the same, ~0.0006 s) because it carries a distribution
+rather than individuals, and it is exact rather than an estimate.
+
+That matters because the inventory engine collapses the Monte-Carlo
+replications to a **mean** before it ever sees them (§4) — so the demand rate
+driving the reorder point is a sampling estimate of something with a closed
+form. Use the recursion for that rate. Keep Monte Carlo for what genuinely
+needs paths: a stockout is a *threshold on a trajectory*, and no expectation
+tells you how often the threshold is crossed.
+
+---
+
 ## 3. Is this "MCMC"?
 
 Not in the strict sense, and the distinction is worth being precise about:

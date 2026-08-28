@@ -28,6 +28,7 @@ here <- if (length(script_path) && nzchar(script_path[1])) dirname(script_path[1
 root <- normalizePath(file.path(here, ".."), mustWork = FALSE)
 engine <- file.path(root, "R")
 
+source(file.path(engine, "titration.R"))
 source(file.path(engine, "simulation.R"))
 source(file.path(engine, "inventory.R"))
 
@@ -37,8 +38,12 @@ sim_end_date    <- if (length(args) >= 2) as.Date(args[2]) else as.Date("2026-12
 # planning "as-of" date: on-hand inventory in the sample data is current as of
 # 2024-01-01, so project forward from there.
 as_of_date      <- if (length(args) >= 3) as.Date(args[3]) else as.Date("2024-01-01")
+seed            <- if (length(args) >= 4) as.integer(args[4]) else 42L
 
-set.seed(42)  # reproducible demo run
+# The seed is an ARGUMENT, not a constant. A seed pinned inside the runner
+# makes every replication identical, which destroys the between-replication
+# variance any experiment over this engine depends on.
+set.seed(seed)
 
 # ---- load inputs ---------------------------------------------------------- #
 inputs_xlsx <- file.path(root, "Program_Inputs.xlsx")
@@ -49,15 +54,23 @@ if (file.exists(inputs_xlsx)) {
   enrollment <- read_csv(file.path(root, "datasets/enrollment_input.csv"), show_col_types = FALSE)
   dosing     <- read_csv(file.path(root, "datasets/dosing_input.csv"), show_col_types = FALSE)
 }
+
+# Optional: CSP-defined dose-titration ladders. Absent => every arm is fixed
+# dose at rung 1, exactly as before titration existed.
+titration_csv <- file.path(root, "datasets/titration_input.csv")
+titration <- if (file.exists(titration_csv)) read_titration(titration_csv) else NULL
 site_inv  <- read_csv(file.path(root, "datasets/site_inventory.csv"),  show_col_types = FALSE)
 depot_inv <- read_csv(file.path(root, "datasets/depot_inventory.csv"), show_col_types = FALSE)
 
 enrollment <- normalize_df(enrollment)
-dosing_long <- expand_dosing(dosing)
+# The WIDE sheet is what carries the dose rungs (Option1..OptionN). Expanding
+# it here would collapse them to one quantity and throw the ladder away, so
+# simulate_visits() is handed the wide sheet and expands it itself.
 
 protocols <- sort(unique(trimws(as.character(enrollment$Protocol))))
 cat(sprintf("Protocols: %s\n", paste(protocols, collapse = ", ")))
-cat(sprintf("Simulations/trials: %d   Horizon: %s\n\n", num_simulations, sim_end_date))
+cat(sprintf("Simulations/trials: %d   Horizon: %s   Seed: %d\n", num_simulations, sim_end_date, seed))
+cat(sprintf("Titrating arms: %d\n\n", if (is.null(titration)) 0L else nrow(titration)))
 
 # ---- DEMAND: enrollment -> visits (all protocols together) ---------------- #
 cat("Simulating enrollment ...\n")
@@ -66,8 +79,9 @@ cat(sprintf("  %d enrollment records across %d trials\n",
             nrow(enroll), num_simulations))
 
 cat("Simulating visits / dispensing ...\n")
-visits <- simulate_visits(enroll, dosing_long,
-                          visit_window = 3, simulation_end_date = sim_end_date)
+visits <- simulate_visits(enroll, dosing,          # WIDE sheet: keeps the rungs
+                          visit_window = 3, simulation_end_date = sim_end_date,
+                          titration = titration)
 visits <- add_date_windows(visits)
 cat(sprintf("  %d dispensing visit records\n", nrow(visits)))
 

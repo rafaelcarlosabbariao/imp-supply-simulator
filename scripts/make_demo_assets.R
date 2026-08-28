@@ -6,6 +6,7 @@ suppressPackageStartupMessages({
 })
 root <- normalizePath(file.path(dirname(sub("--file=", "",
           grep("--file=", commandArgs(FALSE), value = TRUE))[1]), ".."))
+source(file.path(root, "R/titration.R"))
 source(file.path(root, "R/simulation.R"))
 source(file.path(root, "R/inventory.R"))
 out <- file.path(root, "docs/assets"); dir.create(out, showWarnings = FALSE)

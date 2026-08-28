@@ -1,0 +1,2 @@
+Protocol,Arm,Titration_Visits,P_Up,P_Stay,P_Down,P_Miss,Tolerance_Level,Restart_Policy
+TRIAL-118,Combo7,6,0.70,0.20,0.10,0.08,5,uncapped

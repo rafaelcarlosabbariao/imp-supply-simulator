@@ -51,8 +51,24 @@ engine.
 
 ![Model diagram](docs/assets/model_diagram.svg)
 
-- **Full model theory** (Monte Carlo + Markov chain, and how it differs from
-  formal MCMC): [`docs/MODEL_THEORY.md`](docs/MODEL_THEORY.md)
+Where the CSP defines one, a **dose-titration ladder** rides on top of that
+chain: the first `N` visits step the dose up while the patient tolerates it,
+down where they do not, and a **missed visit dispenses nothing and restarts the
+window** from the patient's floor. That floor *ratchets* — once a patient has
+tolerated the CSP's tolerance dose, they never restart below it again. Because
+a rung is usually a different DU (a 15 mg vial and a 100 mg bottle are separate
+lots with separate expiry), titration reallocates demand **across DUs**, and a
+restart pulls the low-dose DU months after the depot stopped forecasting for
+it — exactly the step change a trailing-average reorder point lags.
+
+The ladder's state space is small enough to solve **exactly**:
+`expected_demand()` propagates the distribution forward analytically instead of
+sampling it, in O(1) time regardless of patient count. Use it for the
+reorder-point rate; keep Monte Carlo for stockout risk, which is a threshold on
+a path and genuinely needs one.
+
+- **Full model theory** (Monte Carlo + Markov chain, dose titration, and how it
+  differs from formal MCMC): [`docs/MODEL_THEORY.md`](docs/MODEL_THEORY.md)
 - **Inventory-engine methodology** (the (s, S) policy, expiry, resupply, and the
   bugs found along the way): [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md)
 
@@ -101,17 +117,49 @@ mapped flexibly. `Program_Inputs.xlsx` is the input template.
 ├── global.R · ui.R · server.R      # Shiny app (5 tabs)
 ├── R/
 │   ├── simulation.R                 # DEMAND: enrollment → visits → dispensing (Markov + Monte Carlo)
+│   ├── titration.R                  # dose ladders, the vectorised visit engine, exact recursion
 │   ├── inventory.R                  # SUPPLY: (s,S) projection, FEFO, expiry, resupply
 │   └── newsfeed.R                   # supply-chain news (Google News RSS + risk tagging)
 ├── scripts/
 │   ├── run_simulation.R             # headless end-to-end runner
 │   ├── generate_sample_datasets.py  # (re)generates datasets/ deterministically
 │   └── make_demo_assets.R           # regenerates the README images
+├── tests/
+│   ├── test_titration.R             # correctness gate: simulator vs closed form
+│   └── benchmark.R                  # runtime regression baseline
 ├── datasets/                        # SYNTHETIC sample data (safe, no real patient data)
+│   └── example_titration/           # a worked six-rung ladder (opt-in, see its README)
 ├── docs/                            # MODEL_THEORY.md · METHODOLOGY.md · assets/
 ├── site/                            # static showcase site (Netlify)
 └── Program_Inputs.xlsx              # input template
 ```
+
+## Tests & benchmarks
+
+```bash
+Rscript tests/test_titration.R   # 29 checks; exits non-zero on failure
+Rscript tests/benchmark.R        # runtime baseline
+```
+
+The chain is small and finite, so most of what it does has a closed form, and
+the tests check the simulator against that closed form rather than against a
+recorded snapshot — a mis-threaded state machine still produces plausible
+demand, and only an analytic check catches it. The simulator and
+`expected_demand()` are independent implementations of the same chain, so their
+agreement at scale is the real gate.
+
+`simulate_visits()` is **vectorised across the cohort**: the chain is sequential
+in *time* and independent across *patients*, so the loop runs along the axis
+that is actually sequential and every patient advances as a vector inside it.
+Measured on the same workload, that took the engine from 35,189 to ~2,150,000
+dispensing rows/sec (16.76 s → 0.27 s at 18,750 patients), and removed the
+decay with cohort size that came from growing output with `rbind`.
+
+> **Seeds.** `scripts/run_simulation.R` takes the seed as an argument
+> (`Rscript scripts/run_simulation.R [sims] [end_date] [as_of] [seed]`) rather
+> than pinning it internally. Note that vectorising changed the order in which
+> random numbers are drawn, so a given seed does not reproduce results from
+> before that change.
 
 ## Data & privacy
 

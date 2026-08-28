@@ -46,8 +46,40 @@ simulation horizon or until all their DUs run out of cycles:
 - **Cadence** = the longest `Cycle_Length` among the DUs in the subject's arm.
 - Each visit date = previous date + cadence + a uniform **visit-window** jitter
   `∈ [−w, +w]` days.
-- At each visit, **every DU with cycles remaining** is dispensed at its `Qty`,
-  and that DU's remaining-cycle counter decrements.
+- At each visit, **every DU with cycles remaining** is dispensed at the
+  quantity for the subject's current **dose rung**, and that DU's
+  remaining-cycle counter decrements. Without a titration ladder every subject
+  sits on rung 1 for the whole study, which is the fixed-dose behaviour.
+
+**Dose rungs.** In `Dosing_Input`, each *row* is a co-dispensed kit component
+(drug and diluent are two rows of one arm) and each `OptionJ` *column* is that
+component's quantity at rung `J`. An arm titrates only if it has a row in
+`Titration_Input`; otherwise it is pinned to rung 1 even when several Option
+columns are populated, so a stray column in a sheet can never silently move a
+forecast. Rungs, the ratchet and the restart rule are set out in
+[`MODEL_THEORY.md` §2a](MODEL_THEORY.md).
+
+| `Titration_Input` column | Meaning |
+|---|---|
+| `Protocol`, `Arm` | joins to `Dosing_Input` |
+| `Titration_Visits` | `N`, the length of the titration window |
+| `P_Up`, `P_Stay`, `P_Down` | per-visit transitions, conditional on attending; validated to sum to 1 |
+| `P_Miss` | per-visit probability of a missed visit |
+| `Tolerance_Level` | the ratchet rung; defaults to the second-to-last |
+| `Restart_Policy` | `uncapped` — see below |
+
+**Restarts are uncapped, by design.** A restart resets the titration *window*,
+not the visit budget, so every patient still terminates on their cycle count or
+the horizon and nothing runs away. Auto-discontinuing after `k` restarts was
+measured and rejected: at `P_Miss = 0.08`, a cap of 2–3 discontinues 40–63% of
+the cohort and swings total volume ~35%, while moving the low-dose DU's share
+of demand by under a point. It is a nuisance parameter for any question about
+the demand *mix*. In the clinic this step is a human one — the study lead acts
+on the site clinician's recommendation — and the simulator auto-sets it.
+
+**`expected_demand()`** solves the same ladder exactly by forward recursion, with
+no Monte Carlo and in O(1) time regardless of patient count. Use it for the
+reorder-point rate; use simulated paths for stockout risk.
 
 The result is a per-subject stream of `(Protocol, Site, DU, Date, Qty, Trial)`
 dispensing events.
