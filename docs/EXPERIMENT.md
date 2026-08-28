@@ -4,8 +4,14 @@
 **Status:** PRE-REGISTERED. Nothing below has been run. Results, when they
 exist, go in a *Results* section appended to this file — this text is not
 edited afterwards.
-**Implementation frozen at:** `f4c3333d7d7cf26da225e084df4434fdb3b7d987`
-(2026-08-28T16:55:38-04:00)
+**Implementation frozen at:** `e737631146536f298aec937a533ad686ab0e4c71`
+(2026-08-28T17:46:03-04:00)
+
+> **Re-frozen 2026-08-28.** The first freeze was `f4c3333`. Initial site
+> stocking (`R/seeding.R`) landed after it, which is an engine change, so under
+> the rule below this document was void and has been rewritten rather than
+> amended. Nothing had been run, so the cost was a re-read. §4, §5 and §10 carry
+> the changes.
 
 > **Why the hash is here.** Vectorising the demand engine changed the order in
 > which random numbers are drawn, so a seed does not mean the same thing before
@@ -105,6 +111,27 @@ Everything else is identical between arms: `lead_time_days = 21`,
 
 **One lever moves.** Two would make this uninterpretable.
 
+### Site seeding is held constant across arms
+
+Both arms are seeded by `seed_sites()` — each site stocked for its planned
+cohort through enough visits to outlast one resupply lead time, landing before
+its first patient visit (`docs/METHODOLOGY.md` §2.1a).
+
+Seeding is **not** part of the treatment, for two reasons. Sizing the startup
+shipment off the ladder is *correct forecasting of the first k visits*, not a
+policy choice — a planner with the CSP has that information. And giving the
+control arm a naive study-average seed would confound the treatment effect with
+a startup effect, since a titrating site seeded off study-average demand is
+shipped **zero units of a DU that is 40% of the study** while the low-dose DU is
+under-shipped roughly threefold.
+
+That startup mis-seeding is a real and separate failure — it bites at day zero,
+where the `(s,S)` rate has no history to lean on — and it deserves its own
+experiment. **Pre-specified extension, deliberately not folded in here:** a 2x2
+of {uniform, titration-aware} seeding × {uniform, titration-aware} reorder rule.
+Running it as a factorial now would double the cells and leave the reorder-rule
+main effect harder to read, which is the question this experiment exists for.
+
 ---
 
 ## 5. Unit of randomisation, and the interference problem
@@ -180,11 +207,13 @@ minus control.
 `R = 500` replications, fixed in advance. **No interim analyses and no optional
 stopping.** The result is read once, after 500.
 
-Power is computed **before** the confirmatory run, under the **titration**
-data-generating process — not the fixed-dose one, which would be optimistic
+Power is computed **before** the confirmatory run, **with seeding on** and under
+the **titration** data-generating process — not the fixed-dose one, which would be optimistic
 because titration adds a large per-patient variance component. The power curve
 (protocols × effect size → power at α = 0.05) is generated from this same engine
-and committed alongside this file before any confirmatory run begins.
+and committed alongside this file before any confirmatory run begins. Seeding
+materially changes the starting condition — an unseeded run stocks out early and
+often — so a power curve computed without it would not describe this experiment.
 
 **Minimum detectable effect, pre-specified:** a **5 percentage point** absolute
 reduction in the site × DU stockout rate, at 80% power, α = 0.05, two-sided.
@@ -238,7 +267,9 @@ one is run anyway it will be labelled exploratory and excluded from any claim.
    which are part of the treatment and intended.
 5. **Fixed nuisance parameters.** `Restart_Policy = uncapped`,
    `lead_time_days = 21`, `visit_window = 3`, horizon 2026-12-31, planning
-   as-of 2024-01-01. The restart policy is fixed on measured evidence
+   as-of 2024-01-01, and the seeding parameters of §4 (`Seed_Buffer = 0.10`,
+   `Seed_Lead_Days = 21`, `Seed_Shelf_Life = 730`, `Seed_Visits` defaulted from
+   the lead time). The restart policy is fixed on measured evidence
    (`docs/titration-and-runtime-2026-08-28.md`): a cap moves total volume ~35%
    but the demand *mix* by under a point, so it is a nuisance parameter for this
    question. `Tolerance_Level` and `P_Miss` are **not** fixed — they are the
@@ -268,6 +299,7 @@ unpublished is not doing any work.
 
 ```bash
 Rscript tests/test_titration.R    # 29 checks, must pass before any run
+Rscript tests/test_seeding.R      # 19 checks
 Rscript tests/benchmark.R         # runtime baseline
 # confirmatory run — script added with the results commit, not before
 ```
