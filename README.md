@@ -71,6 +71,11 @@ a path and genuinely needs one.
   differs from formal MCMC): [`docs/MODEL_THEORY.md`](docs/MODEL_THEORY.md)
 - **Inventory-engine methodology** (the (s, S) policy, expiry, resupply, and the
   bugs found along the way): [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md)
+- **Why titration is modelled the way it is, and what it cost to make it fast**:
+  [`docs/titration-and-runtime-2026-08-28.md`](docs/titration-and-runtime-2026-08-28.md)
+- **Pre-registration** for the safety-stock A/B this engine exists to support
+  (written before the run, results appended after):
+  [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md)
 
 ## Quickstart
 
