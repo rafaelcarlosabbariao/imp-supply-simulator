@@ -190,3 +190,80 @@ overturn an assumption — the U-shape, the restart cap, and a `.fast_bind`
 speedup that was 3–6x rather than the ~2000x an earlier scratch benchmark had
 suggested (that one had measured preallocating vectors, not concatenating
 frames).
+
+---
+
+# Addendum — initial site stocking
+
+**Same day, separate decision.** Raised by the study lead: studies are enacted
+in **cohorts**, so a site is activated and shipped an initial supply *before*
+its first patient visit. The engine had no such concept — starting on-hand was
+whatever `datasets/site_inventory.csv` said, with no stated relationship to how
+many patients the site was about to see.
+
+## The decision
+
+`seed_sites()` (`R/seeding.R`) derives the startup shipment: stock each site for
+`Seed_Patients` patients through their first `Seed_Visits` visits, landing
+`Seed_Lead_Days` before that site's first patient visit. `Seed_Visits` defaults
+to `ceil(lead_time / cadence) + 1` — enough to survive until the first reorder
+can physically arrive, which ties the seed to the constraint that governs it
+rather than to a round number. Quantities come from `expected_demand()`
+truncated to the seed window, so they are exact and cost nothing to compute.
+
+**Opt-in.** Absent a `Seed_Patients` argument the runner behaves exactly as
+before, so the shipped sample and its committed figures are unchanged.
+
+## The finding this exposed
+
+Every patient starts on rung 1. So a titrating arm's first visits are dominated
+by the **low-dose** DU in a proportion nothing like its share of the study.
+On the worked example:
+
+| DU | seed-window share | study share | ratio |
+|---|---|---|---|
+| Compound-C 25 mg (low) | 56.9% | 19.4% | **2.94** |
+| Compound-C 100 mg (high) | 0.0% | 40.4% | **0.00** |
+| any DU on a fixed-dose arm | — | — | **1.00** |
+
+Seeding that site off study-average demand ships **zero units of the DU that is
+40% of the study** — correctly, since nobody can be on rung 3 yet — while
+under-shipping the low-dose DU roughly three-fold. The fixed-dose arms sitting
+at exactly 1.00 are the control that says this is the ladder's doing and not an
+artefact.
+
+**This is a second and distinct mechanism.** The restart echo bites in the
+middle of a study, when a trailing average exists and lags. This bites at day
+zero, when there is no history at all and the first resupply is a lead time
+away. `seed_mix_check()` reports the ratio per DU so a planner can see which
+DUs a study-average rule gets wrong before shipping anything.
+
+## Implementation note
+
+The engine already had a per-site in-transit queue (`it_arrive` / `it_q` /
+`it_e`) that reorders push onto and the daily walk drains. Seed shipments join
+that same queue, so the day loop needed no special case — the mechanism existed,
+it just was not exposed as an input. A shipment dated before the planning as-of
+date has already landed and is folded into opening on-hand rather than being
+silently dropped by a loop that starts after it.
+
+## Two bugs the tests caught
+
+- `seed_sites()` emitted **zero-quantity shipment lines** for DUs the seed
+  window does not reach. Filtering them is the whole point of seeding off the
+  ladder rather than off study-average demand.
+- A titration spec naming an arm whose dosing rows carry only `Option1` failed
+  with "Tolerance_Level 5 is outside the ladder (1..1)", which is correct but
+  says nothing about the cause. The message now names it: the arm has one
+  populated Option column, so either populate `Option2..OptionN` or drop it from
+  `Titration_Input`.
+
+## Effect on the experiment
+
+Seeding is **held constant across arms** — both get ladder-derived seeding — so
+the contrast still isolates the reorder rule. Ladder-derived seeding is correct
+forecasting of the first *k* visits, not a policy choice, and giving the control
+arm a naive seed would confound the treatment effect with a startup effect.
+Seeding as a *second factor* (a 2x2 with the reorder rule) is a real experiment
+and is noted in `EXPERIMENT.md` as a pre-specified extension, deliberately not
+folded into this one.

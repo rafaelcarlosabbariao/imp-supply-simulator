@@ -6,7 +6,8 @@
 # UI required, and writes results to output/. Handy for batch/portfolio runs and
 # for verifying the engine independently of the app.
 #
-#   Rscript scripts/run_simulation.R [num_simulations] [sim_end_date YYYY-MM-DD]
+#   Rscript scripts/run_simulation.R [num_simulations] [sim_end_date YYYY-MM-DD] \
+#                                     [as_of_date] [seed] [seed_patients]
 #
 # Inputs read (repo root):
 #   Program_Inputs.xlsx  (Enrollment_Input, Dosing_Input sheets)   -- OR --
@@ -31,6 +32,7 @@ engine <- file.path(root, "R")
 source(file.path(engine, "titration.R"))
 source(file.path(engine, "simulation.R"))
 source(file.path(engine, "inventory.R"))
+source(file.path(engine, "seeding.R"))
 
 args <- commandArgs(trailingOnly = TRUE)
 num_simulations <- if (length(args) >= 1) as.integer(args[1]) else 5L
@@ -39,6 +41,11 @@ sim_end_date    <- if (length(args) >= 2) as.Date(args[2]) else as.Date("2026-12
 # 2024-01-01, so project forward from there.
 as_of_date      <- if (length(args) >= 3) as.Date(args[3]) else as.Date("2024-01-01")
 seed            <- if (length(args) >= 4) as.integer(args[4]) else 42L
+# Initial site stocking. Opt-in: absent, sites start from
+# datasets/site_inventory.csv exactly as before. Given, every site is stocked
+# for this many patients through their first visits and the shipment lands
+# before the site's first patient walks in (R/seeding.R).
+seed_patients   <- if (length(args) >= 5) as.integer(args[5]) else NA_integer_
 
 # The seed is an ARGUMENT, not a constant. A seed pinned inside the runner
 # makes every replication identical, which destroys the between-replication
@@ -70,7 +77,10 @@ enrollment <- normalize_df(enrollment)
 protocols <- sort(unique(trimws(as.character(enrollment$Protocol))))
 cat(sprintf("Protocols: %s\n", paste(protocols, collapse = ", ")))
 cat(sprintf("Simulations/trials: %d   Horizon: %s   Seed: %d\n", num_simulations, sim_end_date, seed))
-cat(sprintf("Titrating arms: %d\n\n", if (is.null(titration)) 0L else nrow(titration)))
+cat(sprintf("Titrating arms: %d\n", if (is.null(titration)) 0L else nrow(titration)))
+cat(sprintf("Site seeding: %s\n\n",
+            if (is.na(seed_patients)) "off (using datasets/site_inventory.csv)"
+            else sprintf("%d patients/site", seed_patients)))
 
 # ---- DEMAND: enrollment -> visits (all protocols together) ---------------- #
 cat("Simulating enrollment ...\n")
@@ -90,13 +100,33 @@ cat(sprintf("  %d site/DU/day demand points; %s total units (all trials)\n\n",
             nrow(demand), format(round(sum(demand$Units)), big.mark = ",")))
 
 # ---- SUPPLY: project inventory across all sites --------------------------- #
+# ---- SEED: stock each site before its first patient visit ----------------- #
+initial_receipts <- NULL
+if (!is.na(seed_patients)) {
+  ladders <- build_ladders(dosing, titration)
+  initial_receipts <- seed_sites(enrollment, ladders,
+                                 list(Seed_Patients = seed_patients))
+  cat(sprintf("Seeding %d shipments across %d sites (%s units) ...\n",
+              nrow(initial_receipts), length(unique(initial_receipts$Site)),
+              format(sum(initial_receipts$Qty), big.mark = ",")))
+  mix <- seed_mix_check(ladders)
+  skew <- mix[abs(mix$Ratio - 1) > 0.25, , drop = FALSE]
+  if (!is.null(skew) && nrow(skew)) {
+    cat("  DUs whose startup mix differs from their study mix:\n")
+    print(utils::head(skew[, c("Protocol", "Arm", "DU", "Seed_Share",
+                               "Study_Share", "Ratio")], 8), row.names = FALSE)
+  }
+  cat("\n")
+}
+
 cat("Projecting inventory (FEFO + expiry + resupply) ...\n")
 proj <- project_inventory(
   demand, site_inv, depot_inv,
   params = list(safety_stock_days = 30, target_days = 90,
                 lead_time_days = 21, unplanned_visit_pct = 0.10,
                 oversupply_pct = 0.10, start_date = as_of_date,
-                horizon_end = sim_end_date))
+                horizon_end = sim_end_date),
+  initial_receipts = initial_receipts)
 
 port <- portfolio_summary(proj)
 

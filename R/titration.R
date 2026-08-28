@@ -104,9 +104,16 @@ validate_ladder <- function(lad) {
       stop(sprintf("Ladder %s: P_Miss must be in [0, 1).", who), call. = FALSE)
     if (lad$N < 1L)
       stop(sprintf("Ladder %s: Titration_Visits must be >= 1.", who), call. = FALSE)
+    if (lad$L < 2L)
+      stop(sprintf(paste0("Ladder %s: Titration_Input says this arm titrates, but its ",
+                          "dosing rows carry only one populated Option column, so the ",
+                          "ladder has a single rung and there is nothing to titrate. ",
+                          "Either populate Option2..OptionN for this arm, or drop it ",
+                          "from Titration_Input."), who), call. = FALSE)
     if (lad$tol < 1L || lad$tol > lad$L)
-      stop(sprintf("Ladder %s: Tolerance_Level %d is outside the ladder (1..%d).",
-                   who, lad$tol, lad$L), call. = FALSE)
+      stop(sprintf(paste0("Ladder %s: Tolerance_Level %d is outside the ladder, which ",
+                          "has %d rung(s) — that is how many Option columns carry a ",
+                          "quantity for this arm."), who, lad$tol, lad$L), call. = FALSE)
     # every rung must dispense something, or the ladder has a hole in it
     per_rung <- colSums(lad$qty, na.rm = TRUE)
     if (any(per_rung <= 0))

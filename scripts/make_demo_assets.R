@@ -9,6 +9,7 @@ root <- normalizePath(file.path(dirname(sub("--file=", "",
 source(file.path(root, "R/titration.R"))
 source(file.path(root, "R/simulation.R"))
 source(file.path(root, "R/inventory.R"))
+source(file.path(root, "R/seeding.R"))
 out <- file.path(root, "docs/assets"); dir.create(out, showWarnings = FALSE)
 set.seed(42)
 

@@ -30,3 +30,4 @@ if (capabilities("cairo")) {
 source("R/titration.R", local = FALSE)
 source("R/simulation.R", local = FALSE)
 source("R/inventory.R", local = FALSE)
+source("R/seeding.R", local = FALSE)

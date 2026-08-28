@@ -29,6 +29,7 @@ This tool models both sides end to end so a supply manager can see problems
 | | |
 |---|---|
 | **Simulate demand** | Monte-Carlo enrollment → each patient walks a Markov chain of dosing cycles → units dispensed per site / DU / day, over many trials. |
+| **Seed the sites** | Studies run in cohorts: each site is stocked for `N` patients through their first visits, and the shipment lands **before its first patient walks in** — sized off the ladder, so a titrating site is shipped what rung 1 actually needs. |
 | **Project supply** | An **(s, S) inventory policy** rolls stock forward day-by-day with **FEFO** consumption, **lot expiry**, depot resupply, safety stock, and lead times. |
 | **Flag risk** | Every site × dispensing-unit is classified **OK / AT&nbsp;RISK / STOCKOUT** with the exact date it first runs dry. |
 | **Map & drill down** | An interactive world map colours sites by status; click one for its per-DU detail and inventory-over-time chart. |
@@ -71,7 +72,7 @@ a path and genuinely needs one.
   differs from formal MCMC): [`docs/MODEL_THEORY.md`](docs/MODEL_THEORY.md)
 - **Inventory-engine methodology** (the (s, S) policy, expiry, resupply, and the
   bugs found along the way): [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md)
-- **Why titration is modelled the way it is, and what it cost to make it fast**:
+- **Why titration and site seeding are modelled the way they are, and what it cost to make the engine fast**:
   [`docs/titration-and-runtime-2026-08-28.md`](docs/titration-and-runtime-2026-08-28.md)
 - **Pre-registration** for the safety-stock A/B this engine exists to support
   (written before the run, results appended after):
@@ -123,6 +124,7 @@ mapped flexibly. `Program_Inputs.xlsx` is the input template.
 ├── R/
 │   ├── simulation.R                 # DEMAND: enrollment → visits → dispensing (Markov + Monte Carlo)
 │   ├── titration.R                  # dose ladders, the vectorised visit engine, exact recursion
+│   ├── seeding.R                    # initial site stocking, sized off the ladder
 │   ├── inventory.R                  # SUPPLY: (s,S) projection, FEFO, expiry, resupply
 │   └── newsfeed.R                   # supply-chain news (Google News RSS + risk tagging)
 ├── scripts/
@@ -131,6 +133,7 @@ mapped flexibly. `Program_Inputs.xlsx` is the input template.
 │   └── make_demo_assets.R           # regenerates the README images
 ├── tests/
 │   ├── test_titration.R             # correctness gate: simulator vs closed form
+│   ├── test_seeding.R               # initial stocking, and the startup DU mix
 │   └── benchmark.R                  # runtime regression baseline
 ├── datasets/                        # SYNTHETIC sample data (safe, no real patient data)
 │   └── example_titration/           # a worked six-rung ladder (opt-in, see its README)
@@ -143,6 +146,7 @@ mapped flexibly. `Program_Inputs.xlsx` is the input template.
 
 ```bash
 Rscript tests/test_titration.R   # 29 checks; exits non-zero on failure
+Rscript tests/test_seeding.R     # 19 checks
 Rscript tests/benchmark.R        # runtime baseline
 ```
 

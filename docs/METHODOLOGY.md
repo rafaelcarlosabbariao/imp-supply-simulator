@@ -113,6 +113,57 @@ expected_units(day) = (Σ units over trials / N_trials) × (1 + unplanned_visit_
 i.e. the mean daily demand across Monte-Carlo trials, uplifted for unplanned
 (unscheduled) visits.
 
+### 2.1a Initial site stocking (`seed_sites`)
+
+A site cannot dispense to its first patient out of an empty cupboard. Studies
+run in **cohorts**: a site is activated, an initial shipment is sent, and only
+then does the first patient walk in. Starting on-hand used to be an arbitrary
+given (`datasets/site_inventory.csv`) with no stated relationship to how many
+patients the site was about to see.
+
+`seed_sites()` derives it. Each site is stocked for `Seed_Patients` patients
+through their first `Seed_Visits` visits, and the shipment lands
+`Seed_Lead_Days` **before that site's first patient visit**. Quantities come
+from `expected_demand()` truncated to the seed window, so they are exact and
+need no simulation.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `Seed_Patients` | the site's planned cohort | patients to stock for, capped by planned enrolment |
+| `Seed_Visits` | enough to outlast one lead time | visits of cover |
+| `Seed_Buffer` | 0.10 | proportional over-ship |
+| `Seed_Lead_Days` | 21 | days before first visit that the shipment lands |
+| `Seed_Shelf_Life` | 730 | days from arrival to retest, for seeded lots |
+
+`Seed_Visits` defaults to `ceil(Seed_Lead_Days / cadence) + 1` — stock the site
+so it survives until the first reorder can physically arrive. That ties the seed
+to the constraint that actually governs it rather than to a round number.
+
+Shipments enter the **same in-transit queue a reorder uses**, so the daily walk
+needs no special case. One dated before the planning as-of date has already
+landed and is folded into opening on-hand rather than being dropped.
+
+**Why the ladder makes this matter.** Every patient starts on rung 1, so a
+titrating arm's first visits are dominated by the *low-dose* DU in a proportion
+nothing like that DU's share of the study. On the worked example
+(`datasets/example_titration/`), over the seed window:
+
+| DU | seed-window share | study share | ratio |
+|---|---|---|---|
+| Compound-C 25 mg (low) | 56.9% | 19.4% | **2.94** |
+| Compound-C 100 mg (high) | 0.0% | 40.4% | **0.00** |
+| every DU on a fixed-dose arm | — | — | 1.00 |
+
+Seed that site off study-average demand and you ship **zero units of the DU that
+is 40% of the study** — which is correct, nobody can be on rung 3 yet — while
+under-shipping the low-dose DU roughly three-fold. And this bites at day zero,
+when the `(s,S)` rate has no history to lean on and the first resupply is a lead
+time away. `seed_mix_check()` reports this ratio per DU; a value far from 1 is a
+DU a study-average rule gets wrong.
+
+This is a *separate* mechanism from the restart echo in §1.3. The restart echo
+bites in the middle of a study; this bites at the start.
+
 ### 2.2 Planning horizon and the "as-of" date
 
 Inventory on hand is *current as of* a planning date (`start_date`). The model

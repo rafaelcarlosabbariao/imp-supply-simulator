@@ -104,7 +104,7 @@ suppressPackageStartupMessages({
 #   $params   : the resolved parameters used
 # --------------------------------------------------------------------------- #
 project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
-                              params = list()) {
+                              params = list(), initial_receipts = NULL) {
   p <- modifyList(list(
     safety_stock_days   = 30,   # buffer, in days of average demand
     target_days         = 90,   # order-up-to level, in days of average demand
@@ -129,6 +129,23 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   site_inv  <- .map_inventory(site_inv_df, "SITE")
   depot_inv <- .map_inventory(depot_inv_df, "DEPOT")
 
+  # Initial site stocking. Sites are activated and shipped BEFORE their first
+  # patient visit (see R/seeding.R); those shipments enter the same in-transit
+  # queue a reorder uses, so nothing about the daily walk has to change.
+  # Columns: Protocol, Site, DU, Arrive_Date, Qty, Expiry.
+  init_rx <- NULL
+  if (!is.null(initial_receipts) && nrow(initial_receipts) > 0) {
+    init_rx <- normalize_df(as.data.frame(initial_receipts,
+                                          stringsAsFactors = FALSE))
+    require_cols(init_rx, c("Protocol", "Site", "DU", "Arrive_Date", "Qty"),
+                 "Initial receipts")
+    init_rx$Arrive_Date <- as_date_flex(init_rx$Arrive_Date)
+    init_rx$Expiry <- if ("Expiry" %in% names(init_rx))
+      as_date_flex(init_rx$Expiry) else as.Date(NA)
+    init_rx <- init_rx[!is.na(init_rx$Qty) & init_rx$Qty > 0, , drop = FALSE]
+    if (nrow(init_rx) == 0) init_rx <- NULL
+  }
+
   # `start_date` is the planning "as-of" date: on-hand inventory is current as
   # of this day, and only demand on/after it is projected against that stock
   # (you cannot resupply the past). Demand before it is historical.
@@ -146,15 +163,20 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
 
   combos <- demand %>% distinct(Protocol, DU)
   # include DUs that have stock but (as yet) no demand, so we still track them
-  combos <- bind_rows(combos, site_inv %>% transmute(Protocol, DU)) %>%
-    distinct(Protocol, DU)
+  combos <- bind_rows(combos, site_inv %>% transmute(Protocol, DU))
+  if (!is.null(init_rx))
+    combos <- bind_rows(combos, init_rx %>% transmute(Protocol, DU))
+  combos <- combos %>% distinct(Protocol, DU)
 
   for (ci in seq_len(nrow(combos))) {
     proto <- combos$Protocol[ci]; du <- combos$DU[ci]
 
     d_pd <- demand %>% filter(Protocol == proto, DU == du)
+    ir_pd <- if (is.null(init_rx)) NULL
+             else init_rx[init_rx$Protocol == proto & init_rx$DU == du, , drop = FALSE]
     sites <- sort(unique(c(d_pd$Site,
-                           site_inv$Location[site_inv$Protocol == proto & site_inv$DU == du])))
+                           site_inv$Location[site_inv$Protocol == proto & site_inv$DU == du],
+                           if (is.null(ir_pd)) NULL else ir_pd$Site)))
     if (length(sites) == 0) next
 
     # shared depot pool for this protocol x DU (vectors; expiry as day-number)
@@ -181,6 +203,26 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
       e$csum   <- cumsum(dv)
       e$pool   <- list(q = p0$Qty, e = as.numeric(p0$Expiry))
       e$it_arrive <- numeric(0); e$it_q <- numeric(0); e$it_e <- numeric(0)
+
+      # Seed shipments join the in-transit queue. One that was due to land
+      # BEFORE the planning as-of date has already arrived, so it is folded
+      # into on-hand rather than silently dropped by a day loop that starts
+      # after it.
+      if (!is.null(ir_pd)) {
+        r0 <- ir_pd[ir_pd$Site == s, , drop = FALSE]
+        if (nrow(r0)) {
+          arr <- as.numeric(r0$Arrive_Date)
+          already <- arr < as.numeric(start_date)
+          if (any(already))
+            e$pool <- list(q = c(e$pool$q, r0$Qty[already]),
+                           e = c(e$pool$e, as.numeric(r0$Expiry)[already]))
+          if (any(!already)) {
+            e$it_arrive <- c(e$it_arrive, arr[!already])
+            e$it_q      <- c(e$it_q,      r0$Qty[!already])
+            e$it_e      <- c(e$it_e,      as.numeric(r0$Expiry)[!already])
+          }
+        }
+      }
       # preallocated output columns (one slot per simulated day)
       e$oh_start <- numeric(nd); e$recv <- numeric(nd); e$disp <- numeric(nd)
       e$exp <- numeric(nd); e$so <- numeric(nd); e$oh_end <- numeric(nd)
