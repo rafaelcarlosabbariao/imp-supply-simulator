@@ -31,6 +31,7 @@ engine <- file.path(root, "R")
 
 source(file.path(engine, "titration.R"))
 source(file.path(engine, "simulation.R"))
+source(file.path(engine, "forecast.R"))
 source(file.path(engine, "inventory.R"))
 source(file.path(engine, "seeding.R"))
 

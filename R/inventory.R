@@ -104,7 +104,9 @@ suppressPackageStartupMessages({
 #   $params   : the resolved parameters used
 # --------------------------------------------------------------------------- #
 project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
-                              params = list(), initial_receipts = NULL) {
+                              params = list(), initial_receipts = NULL,
+                              forecast = "oracle", occupancy = NULL,
+                              ladders = NULL) {
   p <- modifyList(list(
     safety_stock_days   = 30,   # buffer, in days of average demand
     target_days         = 90,   # order-up-to level, in days of average demand
@@ -113,8 +115,18 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
     oversupply_pct      = 0.10, # extra buffer added to every shipment
     start_date          = NULL, # default: earliest demand date
     horizon_end         = NULL, # default: latest demand date
-    enable_resupply     = TRUE  # if FALSE, run down starting stock only
+    enable_resupply     = TRUE, # if FALSE, run down starting stock only
+    trailing_window_days = 60   # lookback for forecast = "trailing"
   ), params)
+
+  # REALISED demand dispenses; FORECAST demand orders. Until forecast modes
+  # existed these were the same series, which made the reorder rule an oracle
+  # and drove the stockout rate to ~0. See R/forecast.R.
+  forecast <- match.arg(forecast, FORECAST_MODES)
+  fc_idx <- if (forecast == "rung" && !is.null(ladders))
+              du_forecast_index(ladders) else NULL
+  if (forecast == "rung" && is.null(occupancy))
+    stop("forecast = \"rung\" needs `occupancy` from build_occupancy().", call. = FALSE)
 
   stopifnot(nrow(demand_df) > 0)
   demand_df <- demand_df %>% mutate(Visit_Date = as_date_flex(Visit_Date))
@@ -224,6 +236,16 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
         }
       }
       # preallocated output columns (one slot per simulated day)
+      # Rung-forecast state: what the planner can see about this site today.
+      if (!is.null(fc_idx)) {
+        fi <- fc_idx[[paste(proto, du, sep = "\r")]]
+        if (!is.null(fi)) {
+          e$occ     <- occupancy[[paste(proto, s, sep = "\r")]]
+          e$P       <- fi$P
+          e$qty_at  <- fi$qty_at
+          e$cadence <- fi$cadence
+        }
+      }
       e$oh_start <- numeric(nd); e$recv <- numeric(nd); e$disp <- numeric(nd)
       e$exp <- numeric(nd); e$so <- numeric(nd); e$oh_end <- numeric(nd)
       e$on_order <- numeric(nd); e$reord <- numeric(nd); e$dshort <- numeric(nd)
@@ -275,11 +297,11 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
         #    so orders track the enrolment ramp instead of lagging it.
         on_order <- if (length(st$it_q)) sum(st$it_q) else 0
         reorder_qty <- 0; depot_short <- 0
-        window_units <- fwd(st$csum, ti, ti + lt + tg - 1)
-        window_days  <- max(1, min(nd - ti + 1, lt + tg))
-        rate <- window_units / window_days
-        lead_demand     <- fwd(st$csum, ti, ti + lt - 1)
-        coverage_demand <- fwd(st$csum, ti + lt, ti + lt + tg - 1)
+        fc <- .forecast_window(forecast, st, ti, nd, lt, tg, p)
+        if (is.null(fc)) fc <- .forecast_window("trailing", st, ti, nd, lt, tg, p)
+        rate            <- fc$rate
+        lead_demand     <- fc$lead_demand
+        coverage_demand <- fc$coverage_demand
         ss_units      <- p$safety_stock_days * rate
         reorder_point <- lead_demand + ss_units
         S_units       <- (lead_demand + coverage_demand + ss_units) * (1 + p$oversupply_pct)

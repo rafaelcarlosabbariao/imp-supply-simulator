@@ -271,6 +271,7 @@ simulate_visits <- function(patient_df, dosing_long, visit_window = 3,
         Visit_Date = as.Date(dates[cbind(pi_, ti_)], origin = "1970-01-01"),
         Visit_Type = "Planned",
         DU_Desc    = lad$components$DU_Description[ck],
+        Rung       = sub[hit],          # dose rung this visit was made at
         Qty        = q[hit],
         Kit_ID     = NA_character_,
         Lot_ID     = NA_character_,

@@ -1,0 +1,19 @@
+"protocol_id","phase","therapeutic_area","status","sites_count","enrollment_target","titrates","cycle_len","end_imputed","synthetic"
+"ONR-2024-001","Phase II","Oncology","Ongoing",25,180,TRUE,21,FALSE,FALSE
+"CVD-2024-002","Phase III","Cardiology","Planning",40,350,FALSE,28,FALSE,FALSE
+"NEU-2024-003","Phase I","Neurology","Ongoing",12,60,TRUE,21,FALSE,FALSE
+"ONC-001","Phase II","Oncology","Ongoing",25,200,TRUE,21,FALSE,FALSE
+"VAC-001","Phase III","Vaccines","Ongoing",150,30000,FALSE,28,FALSE,FALSE
+"IM-001","Phase I","Internal Medicine","Planning",5,50,TRUE,21,FALSE,FALSE
+"I&I-001","Phase II","Inflammation & Immunology","Ongoing",40,350,FALSE,21,FALSE,FALSE
+"VAC-002","Phase IV","Vaccines","Planning",100,10000,FALSE,28,FALSE,FALSE
+"ONC-003","Phase II","Oncology","Ongoing",25,180,TRUE,21,FALSE,FALSE
+"IM-002","Phase III","Internal Medicine","Ongoing",45,300,FALSE,28,FALSE,FALSE
+"II-003","Phase II","Inflammation & Immunology","Planning",30,220,FALSE,21,FALSE,FALSE
+"VAC-004","Phase I","Vaccines","Ongoing",12,100,TRUE,21,FALSE,FALSE
+"ONC-007","Phase I","Oncology","Planning",15,90,TRUE,21,FALSE,FALSE
+"VAC-008","Phase III","Vaccines","Ongoing",35,280,FALSE,28,FALSE,FALSE
+"IM-009","Registration","Internal Medicine","Ongoing",60,500,FALSE,28,FALSE,FALSE
+"II-010","Phase III","Inflammation & Immunology","Planning",40,320,FALSE,28,FALSE,FALSE
+"ONC-011","Phase II","Oncology","Ongoing",28,200,TRUE,21,FALSE,FALSE
+"VAC-012","Phase I","Vaccines","Planning",8,60,TRUE,21,FALSE,FALSE

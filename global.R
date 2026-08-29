@@ -29,5 +29,6 @@ if (capabilities("cairo")) {
 # headless runner (R/run_simulation.R).
 source("R/titration.R", local = FALSE)
 source("R/simulation.R", local = FALSE)
+source("R/forecast.R", local = FALSE)
 source("R/inventory.R", local = FALSE)
 source("R/seeding.R", local = FALSE)
