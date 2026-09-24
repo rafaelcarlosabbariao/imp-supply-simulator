@@ -292,6 +292,14 @@ Rscript scripts/build_frame.R ~/reins/app/data datasets/frame_expanded <n>   # i
 Every result row carries `rep_seed`, `protocol`, `donor`, `forecast`, and the
 engine commit hash.
 
+> **Note, 2026-09-24, before any confirmatory result.** The run and analysis
+> scripts were committed before the results, at Rafael's request, so the
+> analysis is fixed in the history before any outcome exists:
+> `scripts/confirmatory_run.R` (started on the expanded frame, R = 50),
+> `scripts/confirmatory_analysis.R`, and `scripts/after_confirmatory.sh`, which
+> runs the analysis when the run finishes and writes
+> `output/experiment/confirmatory/results.txt`.
+
 ---
 
 ## History
