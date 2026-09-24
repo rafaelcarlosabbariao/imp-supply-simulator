@@ -105,6 +105,13 @@ The stat cards, the map and the images all come from one run
 The previous page said 3 stockouts and 3 at risk, taken from an older `map.html` that no
 script produced. The engine gave 1 and 5 on 2026-09-23, and 1 and 6 across 9 sites from 2026-09-24, when center 1004 in the USA became its own site. Later the same day the default forecast moved from the oracle to the trailing average, and the run gives 1 stockout, 7 at risk and 1 healthy. The AT RISK rule changed the same day (METHODOLOGY §2.5a), and the run gives 1 stockout, 0 at risk and 8 healthy.
 
+The *Context* section, added 2026-09-24, is a swimlane of the clinical supply process: eight
+roles by six phases, with the four points where MC² is used in solid brand, the steps the
+engine simulates in `BRAND_WASH`, and steps outside the model in white. Its SVG is inline, so
+it styles off the page's own custom properties and writes no hex values. It keeps a 900px
+minimum width inside a panel that scrolls sideways at phone width. The business context and
+layout decisions are in [`supply-process-diagram-plan-2026-09-24.md`](supply-process-diagram-plan-2026-09-24.md).
+
 `site/assets/model_diagram.svg` is hand-written SVG. Its colours were mapped onto the
 tokens, and its loop label, which overprinted the caption, was moved beside the loop.
 

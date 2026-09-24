@@ -91,6 +91,40 @@
   .note{font-size:13px;color:var(--muted);margin-top:12px}
   code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface-muted);border:1px solid var(--border);
        border-radius:6px;padding:2px 7px;font-size:13px;color:var(--ink);overflow-wrap:anywhere}
+  /* The supply-process swimlane. The SVG is inline so it styles off the tokens above. */
+  .legend{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--text);margin:0 0 16px;padding:0;list-style:none}
+  .legend li{display:inline-flex;align-items:center;gap:8px}
+  .sw{display:inline-block;width:22px;height:14px;border-radius:4px}
+  .sw.mc{background:var(--brand)}
+  .sw.sim{background:var(--brand-wash);border:1.2px solid var(--brand)}
+  .sw.out{background:var(--surface);border:1px solid var(--muted)}
+  .sw.ln{height:0;border-radius:0;border-top:2px solid var(--ink)}
+  .sw.ln.i{border-top-style:dashed;border-top-color:var(--muted)}
+  .sw.ln.b{border-top-style:dashed;border-top-color:var(--brand)}
+  .sc-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:12px}
+  .sc-scroll svg{display:block;width:100%;min-width:900px;height:auto;font-family:var(--font)}
+  .sc .lane-a{fill:var(--surface)} .sc .lane-b{fill:var(--surface-alt)} .sc .lane-mc{fill:var(--brand-wash)}
+  .sc .rule{stroke:var(--border);stroke-width:1}
+  .sc .role{font-size:12.5px;font-weight:600;fill:var(--ink)}
+  .sc .role-sub{font-size:11px;fill:var(--muted)}
+  .sc .phase{font-size:10.5px;font-weight:600;letter-spacing:.08em;fill:var(--muted);text-anchor:middle}
+  .sc .b-mc{fill:var(--brand)}
+  .sc .b-sim{fill:var(--brand-wash);stroke:var(--brand);stroke-width:1.2}
+  .sc .b-out{fill:var(--surface);stroke:var(--muted);stroke-width:1}
+  .sc .t{font-size:12px;font-weight:600;fill:var(--ink);text-anchor:middle}
+  .sc .s{font-size:11px;fill:var(--text);text-anchor:middle}
+  .sc .w{fill:var(--surface)}
+  .sc .badge{fill:var(--surface);stroke:var(--brand);stroke-width:1.5}
+  .sc .badge-n{font-size:10.5px;font-weight:700;fill:var(--brand-text);text-anchor:middle}
+  .sc .ln-m{stroke:var(--ink);stroke-width:1.6;fill:none}
+  .sc .ln-i{stroke:var(--muted);stroke-width:1.4;stroke-dasharray:5 4;fill:none}
+  .sc .ln-b{stroke:var(--brand);stroke-width:1.6;stroke-dasharray:5 4;fill:none}
+  .sc .gap{stroke:var(--surface);stroke-width:8;fill:none}
+  .sc .ah-m{fill:var(--ink)} .sc .ah-i{fill:var(--muted)} .sc .ah-b{fill:var(--brand)}
+  .sc .lab{font-size:10.5px;fill:var(--muted)} .sc .lab-b{font-size:10.5px;font-weight:500;fill:var(--brand-text)}
+  .feat .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--brand);
+           color:#fff;font-size:12px;font-weight:700;margin-right:8px;vertical-align:1px}
+  .scroll-note{display:none}
   footer{padding:40px 0 64px;color:var(--muted);border-top:1px solid var(--border);font-size:14px}
   @media(max-width:640px){
     .wrap{padding:0 16px}
@@ -99,6 +133,7 @@
     .imgrow{grid-template-columns:1fr}
     .frame{height:380px}
     .descriptor{display:none}
+    .scroll-note{display:block}
   }
 </style>
 <style>
@@ -794,8 +829,8 @@ the sample (as-of 2024-01-01, 5 trials, trailing forecast, 1,096 days):</p>
 <p>The old rule flagged 18 of 30 pairs. Together they spent 0.5% of their days below the
 safety stock, and 14 of the 18 never fell below 23 days of supply. Most of the
 flags were dips of a few days before a reorder landed.</p>
-<p><strong>The rule adopted, 2026-09-24.</strong> Rafael chose the rule the Pfizer-era tool
-used. Its overview deck (C399) set the reorder point a lead time before running
+<p><strong>The rule adopted, 2026-09-24.</strong> The engine takes the rule the Pfizer-era
+tool used. Its overview deck (C399) set the reorder point a lead time before running
 inventory crossed safety stock, so the crossing was the routine trigger for an
 order, and it raised its alert on site inventory against the forecasted burn.
 The engine now does the same. Each day, after dispensing and the reorder
@@ -992,7 +1027,7 @@ The committed <code>datasets/</code> are <strong>synthetic</strong> stand-ins pr
 <footer>
   <div class="wrap">
     <p><a href="index.html">MC² overview</a> · <a href="https://github.com/rafaelcarlosabbariao/imp-supply-simulator" rel="noopener">GitHub repository</a></p>
-    <p>Built by Rafael Carlos Abbariao · R · Shiny · plotly · a hand-rolled (s,&nbsp;S) inventory engine</p>
+    <p>Built with R · Shiny · plotly · a hand-rolled (s,&nbsp;S) inventory engine</p>
   </div>
 </footer>
 </body>

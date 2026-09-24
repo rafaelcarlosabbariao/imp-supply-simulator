@@ -172,7 +172,7 @@ page <- paste0('<!doctype html>
 <footer>
   <div class="wrap">
     <p><a href="index.html">MC² overview</a> · <a href="', REPO, '" rel="noopener">GitHub repository</a></p>
-    <p>Built by Rafael Carlos Abbariao · R · Shiny · plotly · a hand-rolled (s,&nbsp;S) inventory engine</p>
+    <p>Built with R · Shiny · plotly · a hand-rolled (s,&nbsp;S) inventory engine</p>
   </div>
 </footer>
 </body>

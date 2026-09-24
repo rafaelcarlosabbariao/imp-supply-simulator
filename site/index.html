@@ -96,6 +96,40 @@
   .note{font-size:13px;color:var(--muted);margin-top:12px}
   code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface-muted);border:1px solid var(--border);
        border-radius:6px;padding:2px 7px;font-size:13px;color:var(--ink);overflow-wrap:anywhere}
+  /* The supply-process swimlane. The SVG is inline so it styles off the tokens above. */
+  .legend{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--text);margin:0 0 16px;padding:0;list-style:none}
+  .legend li{display:inline-flex;align-items:center;gap:8px}
+  .sw{display:inline-block;width:22px;height:14px;border-radius:4px}
+  .sw.mc{background:var(--brand)}
+  .sw.sim{background:var(--brand-wash);border:1.2px solid var(--brand)}
+  .sw.out{background:var(--surface);border:1px solid var(--muted)}
+  .sw.ln{height:0;border-radius:0;border-top:2px solid var(--ink)}
+  .sw.ln.i{border-top-style:dashed;border-top-color:var(--muted)}
+  .sw.ln.b{border-top-style:dashed;border-top-color:var(--brand)}
+  .sc-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:12px}
+  .sc-scroll svg{display:block;width:100%;min-width:900px;height:auto;font-family:var(--font)}
+  .sc .lane-a{fill:var(--surface)} .sc .lane-b{fill:var(--surface-alt)} .sc .lane-mc{fill:var(--brand-wash)}
+  .sc .rule{stroke:var(--border);stroke-width:1}
+  .sc .role{font-size:12.5px;font-weight:600;fill:var(--ink)}
+  .sc .role-sub{font-size:11px;fill:var(--muted)}
+  .sc .phase{font-size:10.5px;font-weight:600;letter-spacing:.08em;fill:var(--muted);text-anchor:middle}
+  .sc .b-mc{fill:var(--brand)}
+  .sc .b-sim{fill:var(--brand-wash);stroke:var(--brand);stroke-width:1.2}
+  .sc .b-out{fill:var(--surface);stroke:var(--muted);stroke-width:1}
+  .sc .t{font-size:12px;font-weight:600;fill:var(--ink);text-anchor:middle}
+  .sc .s{font-size:11px;fill:var(--text);text-anchor:middle}
+  .sc .w{fill:var(--surface)}
+  .sc .badge{fill:var(--surface);stroke:var(--brand);stroke-width:1.5}
+  .sc .badge-n{font-size:10.5px;font-weight:700;fill:var(--brand-text);text-anchor:middle}
+  .sc .ln-m{stroke:var(--ink);stroke-width:1.6;fill:none}
+  .sc .ln-i{stroke:var(--muted);stroke-width:1.4;stroke-dasharray:5 4;fill:none}
+  .sc .ln-b{stroke:var(--brand);stroke-width:1.6;stroke-dasharray:5 4;fill:none}
+  .sc .gap{stroke:var(--surface);stroke-width:8;fill:none}
+  .sc .ah-m{fill:var(--ink)} .sc .ah-i{fill:var(--muted)} .sc .ah-b{fill:var(--brand)}
+  .sc .lab{font-size:10.5px;fill:var(--muted)} .sc .lab-b{font-size:10.5px;font-weight:500;fill:var(--brand-text)}
+  .feat .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--brand);
+           color:#fff;font-size:12px;font-weight:700;margin-right:8px;vertical-align:1px}
+  .scroll-note{display:none}
   footer{padding:40px 0 64px;color:var(--muted);border-top:1px solid var(--border);font-size:14px}
   @media(max-width:640px){
     .wrap{padding:0 16px}
@@ -104,6 +138,7 @@
     .imgrow{grid-template-columns:1fr}
     .frame{height:380px}
     .descriptor{display:none}
+    .scroll-note{display:block}
   }
 </style>
 </head>
@@ -129,7 +164,7 @@
       across every enrolled patient many times, and projects IMP inventory at every site and depot
       under a resupply policy, dating each stockout weeks ahead.</p>
     <p class="provenance">MC² is a public rebuild, on synthetic data, of a clinical-supply simulator
-      Rafael built in industry.</p>
+      built in industry.</p>
     <div class="cta">
       <a class="btn primary" id="repo" href="https://github.com/rafaelcarlosabbariao/imp-supply-simulator" target="_blank" rel="noopener">View on GitHub</a>
       <a class="btn" id="article" href="methodology.html">Read the Write-up</a>
@@ -153,6 +188,170 @@
       times, move through dosing cycles at their own pace, and sometimes discontinue. Supply works against
       lot expiry, shipping lead times, and depot limits. MC² models both sides end to end, so a stockout
       shows up in the projection before it happens at the site.</p>
+  </div>
+</section>
+
+<section id="context">
+  <div class="wrap">
+    <p class="eyebrow">Context</p>
+    <h2>Where MC² sits in a trial's supply chain</h2>
+    <p class="lead">Drug for a trial is made, packed into blinded kits, released lot by lot, held in
+      depots and shipped to sites, where it is dispensed at each patient visit; whatever is left is
+      returned, counted and destroyed. A different team owns each step. MC² is a planning tool for the
+      clinical supply manager, used at the four numbered points below, and the shaded steps are the
+      ones its engine simulates.</p>
+    <ul class="legend">
+      <li><span class="sw mc"></span>Where MC² is used</li>
+      <li><span class="sw sim"></span>Step the engine simulates</li>
+      <li><span class="sw out"></span>Outside the model</li>
+      <li><span class="sw ln"></span>Drug or patient moves</li>
+      <li><span class="sw ln i"></span>Information moves</li>
+      <li><span class="sw ln b"></span>Into or out of MC²</li>
+    </ul>
+    <div class="panel"><div class="sc-scroll">
+<svg class="sc" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 562" role="img" aria-labelledby="sc-t sc-d">
+  <title id="sc-t">The clinical supply process, who owns each step, and where MC² is used</title>
+  <desc id="sc-d">Eight roles across six phases. The study team writes the protocol and enrollment plan.
+    Supply planning forecasts demand with MC², which sets kit quantities for manufacturing and packaging.
+    Quality releases each lot to a depot. MC² also sets seed sizes and the resupply levels the IRT system
+    applies; the IRT orders stock from the depot, which ships to sites through import clearance. The site
+    pharmacy dispenses kits at each patient visit and returns what is left for reconciliation. MC² watches
+    depot, site and in-transit stock for stockouts, and tests disruptions such as customs holds.</desc>
+  <defs>
+    <marker id="sc-am" viewBox="0 0 8 6" markerWidth="8" markerHeight="6" refX="7.5" refY="3" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path class="ah-m" d="M0,0 L8,3 L0,6 Z"/></marker>
+    <marker id="sc-ai" viewBox="0 0 8 6" markerWidth="8" markerHeight="6" refX="7.5" refY="3" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path class="ah-i" d="M0,0 L8,3 L0,6 Z"/></marker>
+    <marker id="sc-ab" viewBox="0 0 8 6" markerWidth="8" markerHeight="6" refX="7.5" refY="3" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path class="ah-b" d="M0,0 L8,3 L0,6 Z"/></marker>
+  </defs>
+
+  <!-- lanes: one per role -->
+  <rect class="lane-a"  x="0" y="44"  width="1080" height="64"/>
+  <rect class="lane-mc" x="0" y="108" width="1080" height="64"/>
+  <rect class="lane-a"  x="0" y="172" width="1080" height="64"/>
+  <rect class="lane-b"  x="0" y="236" width="1080" height="64"/>
+  <rect class="lane-a"  x="0" y="300" width="1080" height="64"/>
+  <rect class="lane-b"  x="0" y="364" width="1080" height="64"/>
+  <rect class="lane-a"  x="0" y="428" width="1080" height="64"/>
+  <rect class="lane-b"  x="0" y="492" width="1080" height="64"/>
+  <path class="rule" d="M0,44 H1080 M0,108 H1080 M0,172 H1080 M0,236 H1080 M0,300 H1080 M0,364 H1080 M0,428 H1080 M0,492 H1080 M0,556 H1080 M166,44 V556"/>
+
+  <!-- phases: one per column -->
+  <text class="phase" x="14"  y="28" style="text-anchor:start">ROLE</text>
+  <text class="phase" x="245" y="28">PLAN</text>
+  <text class="phase" x="395" y="28">MAKE &amp; PACK</text>
+  <text class="phase" x="545" y="28">RELEASE</text>
+  <text class="phase" x="695" y="28">STORE &amp; ACTIVATE</text>
+  <text class="phase" x="845" y="28">SHIP &amp; DISPENSE</text>
+  <text class="phase" x="995" y="28">CLOSE OUT</text>
+
+  <!-- role labels -->
+  <text class="role" x="14" y="73">Study team</text>        <text class="role-sub" x="14" y="89">clinical ops, CRA</text>
+  <text class="role" x="14" y="137">Supply planning</text>   <text class="role-sub" x="14" y="153">supply manager, MC²</text>
+  <text class="role" x="14" y="201">Manufacturing</text>     <text class="role-sub" x="14" y="217">CMC, CDMO, packaging</text>
+  <text class="role" x="14" y="265">Quality &amp; regulatory</text><text class="role-sub" x="14" y="281">QA, QP, trade compliance</text>
+  <text class="role" x="14" y="329">Depots &amp; logistics</text><text class="role-sub" x="14" y="345">depots, couriers</text>
+  <text class="role" x="14" y="393">Site pharmacy</text>     <text class="role-sub" x="14" y="409">pharmacist, investigator</text>
+  <text class="role" x="14" y="457">IRT system</text>        <text class="role-sub" x="14" y="473">randomisation, supply</text>
+  <text class="role" x="14" y="521">Patient</text>           <text class="role-sub" x="14" y="537">trial participant</text>
+
+  <!-- information lines, drawn under the drug lines -->
+  <path class="ln-i" d="M245,98 V118" marker-end="url(#sc-ai)"/>
+  <path class="ln-b" d="M313,128 H477" marker-end="url(#sc-ab)"/>
+  <path class="ln-i" d="M313,150 H395 V182" marker-end="url(#sc-ai)"/>
+  <text class="lab" x="401" y="168">kit quantities</text>
+  <path class="ln-b" d="M613,140 H620 V460 H627" marker-end="url(#sc-ab)"/>
+  <text class="lab-b" x="612" y="455" style="text-anchor:end">seed size, s and S</text>
+  <path class="ln-b" d="M695,310 V162" marker-end="url(#sc-ab)"/>
+  <text class="lab-b" x="701" y="210">stock, in transit</text>
+  <path class="ln-b" d="M845,246 V162" marker-end="url(#sc-ab)"/>
+  <text class="lab-b" x="851" y="210">holds, lead times</text>
+  <path class="ln-i" d="M695,438 V354" marker-end="url(#sc-ai)"/>
+  <text class="lab" x="701" y="400">orders</text>
+  <path class="ln-i" d="M790,418 V460 H763" marker-start="url(#sc-ai)" marker-end="url(#sc-ai)"/>
+  <text class="lab" x="769" y="478">stock, kit IDs</text>
+  <path class="ln-i" d="M995,374 V98" marker-end="url(#sc-ai)"/>
+  <text class="lab" x="1001" y="240">unit counts</text>
+
+  <!-- drug and patient lines; the gap marks where release → depot crosses the seed line -->
+  <path class="ln-m" d="M463,204 H545 V246" marker-end="url(#sc-am)"/>
+  <path class="gap" d="M614,332 H626"/>
+  <path class="ln-m" d="M545,290 V332 H627" marker-end="url(#sc-am)"/>
+  <path class="ln-m" d="M763,332 H777" marker-end="url(#sc-am)"/>
+  <path class="ln-m" d="M845,354 V374" marker-end="url(#sc-am)"/>
+  <path class="ln-m" d="M845,418 V502" marker-end="url(#sc-am)"/>
+  <path class="ln-m" d="M913,396 H927" marker-end="url(#sc-am)"/>
+  <path class="ln-m" d="M763,524 H777" marker-end="url(#sc-am)"/>
+
+  <!-- study team -->
+  <rect class="b-out" x="177" y="54" width="136" height="44" rx="10"/>
+  <text class="t" x="245" y="73">Protocol &amp; plan</text><text class="s" x="245" y="89">dosing, cohorts, sites</text>
+  <rect class="b-out" x="927" y="54" width="136" height="44" rx="10"/>
+  <text class="t" x="995" y="73">Reconcile</text><text class="s" x="995" y="89">drug accountability</text>
+
+  <!-- supply planning: the four points where MC² is used -->
+  <rect class="b-mc" x="177" y="118" width="136" height="44" rx="10"/>
+  <text class="t w" x="245" y="137">Forecast demand</text><text class="s w" x="245" y="153">site × DU × day</text>
+  <rect class="b-mc" x="477" y="118" width="136" height="44" rx="10"/>
+  <text class="t w" x="545" y="137">Seed &amp; resupply</text><text class="s w" x="545" y="153">seed size, s and S</text>
+  <rect class="b-mc" x="627" y="118" width="136" height="44" rx="10"/>
+  <text class="t w" x="695" y="137">Watch stock</text><text class="s w" x="695" y="153">dated stockout flags</text>
+  <rect class="b-mc" x="777" y="118" width="136" height="44" rx="10"/>
+  <text class="t w" x="845" y="137">Test a disruption</text><text class="s w" x="845" y="153">strike, customs hold</text>
+  <circle class="badge" cx="179" cy="118" r="9"/><text class="badge-n" x="179" y="122">1</text>
+  <circle class="badge" cx="479" cy="118" r="9"/><text class="badge-n" x="479" y="122">2</text>
+  <circle class="badge" cx="629" cy="118" r="9"/><text class="badge-n" x="629" y="122">3</text>
+  <circle class="badge" cx="779" cy="118" r="9"/><text class="badge-n" x="779" y="122">4</text>
+
+  <!-- manufacturing -->
+  <rect class="b-out" x="327" y="182" width="136" height="44" rx="10"/>
+  <text class="t" x="395" y="201">Make, pack, label</text><text class="s" x="395" y="217">blinded kits by lot</text>
+
+  <!-- quality and regulatory -->
+  <rect class="b-out" x="477" y="246" width="136" height="44" rx="10"/>
+  <text class="t" x="545" y="265">QA / QP release</text><text class="s" x="545" y="281">certify each lot</text>
+  <rect class="b-out" x="777" y="246" width="136" height="44" rx="10"/>
+  <text class="t" x="845" y="265">Import clearance</text><text class="s" x="845" y="281">licences, customs</text>
+
+  <!-- depots and logistics -->
+  <rect class="b-sim" x="627" y="310" width="136" height="44" rx="10"/>
+  <text class="t" x="695" y="329">Depot stock</text><text class="s" x="695" y="345">FEFO, lot expiry</text>
+  <rect class="b-sim" x="777" y="310" width="136" height="44" rx="10"/>
+  <text class="t" x="845" y="329">Ship to sites</text><text class="s" x="845" y="345">lead time by country</text>
+
+  <!-- site pharmacy -->
+  <rect class="b-sim" x="777" y="374" width="136" height="44" rx="10"/>
+  <text class="t" x="845" y="393">Store &amp; dispense</text><text class="s" x="845" y="409">kits at each visit</text>
+  <rect class="b-out" x="927" y="374" width="136" height="44" rx="10"/>
+  <text class="t" x="995" y="393">Return &amp; destroy</text><text class="s" x="995" y="409">unused, expired kits</text>
+
+  <!-- IRT -->
+  <rect class="b-sim" x="627" y="438" width="136" height="44" rx="10"/>
+  <text class="t" x="695" y="457">Resupply orders</text><text class="s" x="695" y="473">trigger at s, up to S</text>
+
+  <!-- patient -->
+  <rect class="b-sim" x="627" y="502" width="136" height="44" rx="10"/>
+  <text class="t" x="695" y="521">Enroll</text><text class="s" x="695" y="537">date within window</text>
+  <rect class="b-sim" x="777" y="502" width="136" height="44" rx="10"/>
+  <text class="t" x="845" y="521">Attend visits</text><text class="s" x="845" y="537">cycles, titration</text>
+</svg>
+    </div></div>
+    <p class="note scroll-note">Scroll the diagram sideways to see every phase.</p>
+    <div class="grid" style="margin-top:24px">
+      <div class="feat"><h3><span class="n">1</span>Forecast demand</h3><p>Before the first patient enrolls, and at each
+        reforecast, the enrollment plan and the protocol's dosing and titration run through the simulation to
+        give units per site, dispensing unit and day. Packaging quantities are ordered against that forecast.</p></div>
+      <div class="feat"><h3><span class="n">2</span>Seed and resupply</h3><p>Each cohort at each site is seeded before its
+        first visit, sized off the dosing ladder. Resupply follows an (s,&nbsp;S) rule: reorder when stock falls to
+        s, ship up to S. These are the trigger and resupply levels an IRT system is set up with.</p></div>
+      <div class="feat"><h3><span class="n">3</span>Watch stock</h3><p>During the study, a run from the current site
+        and depot stock and the shipments on the road marks every site × dispensing unit OK, AT&nbsp;RISK or
+        STOCKOUT, with the date it first runs out, on the map and the portfolio view.</p></div>
+      <div class="feat"><h3><span class="n">4</span>Test a disruption</h3><p>A port strike or a customs hold is a
+        window that delays whatever is due to land inside it. Running one shows which sites it pushes into a
+        stockout, and when.</p></div>
+    </div>
+    <p class="note">Outside the model: manufacturing, packaging, lot release, import clearance (only its delay is
+      modelled), randomisation, screening and discontinuation, returns and reconciliation. Depots are drawn down
+      and never restocked from manufacturing (<a href="methodology.html">Methodology §4</a>).</p>
   </div>
 </section>
 
@@ -225,7 +424,7 @@
 <footer>
   <div class="wrap">
     <p><a id="repo2" href="https://github.com/rafaelcarlosabbariao/imp-supply-simulator" rel="noopener">GitHub repository</a> · <a id="article2" href="methodology.html">Technical write-up</a></p>
-    <p>Built by Rafael Carlos Abbariao · R · Shiny · plotly · a hand-rolled (s,&nbsp;S) inventory engine</p>
+    <p>Built with R · Shiny · plotly · a hand-rolled (s,&nbsp;S) inventory engine</p>
   </div>
 </footer>
 
