@@ -41,7 +41,10 @@ FRAME   <- file.path(root, "datasets/frame")
 # starting before that date, sat at 0.372 while every other protocol was
 # <= 0.0067. Fixed-dose trials in the same position are unaffected, because a
 # one-rung ladder has no mix to get wrong.
-AS_OF   <- as.Date(Sys.getenv("ASOF", "2022-05-01"))   # before the earliest start
+# Before the earliest SEED SHIP DATE, which is a cohort's start less the seed
+# lead (21 days) less the lane (21 days): 2022-04-08 on this frame. The old
+# default, 2022-05-01, was before the earliest start but after some seeds left.
+AS_OF   <- as.Date(Sys.getenv("ASOF", "2022-04-01"))
 HORIZON <- as.Date(Sys.getenv("HORIZON", "2026-12-31"))
 SEED_PATIENTS <- NA                  # NA => each site's own planned cohort
 
@@ -108,8 +111,14 @@ for (rep in seq_len(REPS)) {
                                         simulation_end_date = HORIZON,
                                         titration = titr))
   d <- compute_demand(v)
+  # Sites start empty and the seeds build them. The as-of date sits before the
+  # earliest start, so every seed ships inside the walk, from the depot.
   pr <- project_inventory(d, empty_site_inv, depot, CONTROL,
-                          initial_receipts = receipts)
+                          initial_receipts = receipts, opening = "seeded")
+  seed_short <- sum(pr$daily$Seed_Short)
+  if (seed_short > 0)
+    cat(sprintf("  rep %d: the depot fell %s units short of the seeds\n", rep,
+                format(round(seed_short), big.mark = ",")))
 
   s <- pr$summary %>%
     group_by(Protocol) %>%

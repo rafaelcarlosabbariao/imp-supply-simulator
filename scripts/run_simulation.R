@@ -13,9 +13,13 @@
 #   Program_Inputs.xlsx  (Enrollment_Input, Dosing_Input sheets)   -- OR --
 #   datasets/*.csv       (falls back to these if the workbook is absent)
 #   datasets/site_inventory.csv, datasets/depot_inventory.csv
+#   datasets/in_transit.csv, datasets/lanes.csv   (read when present)
+#   DISRUPTIONS=<csv> in the environment adds a disruption scenario, e.g.
+#     DISRUPTIONS=datasets/scenarios/argentina_customs_hold.csv
 # Outputs written (output/):
 #   simulated_visits.csv, inventory_daily.csv, inventory_summary.csv,
-#   portfolio_by_study.csv
+#   portfolio_by_study.csv, shipments.csv (every seed, reorder and shipment
+#   on the road, with planned and actual arrival)
 # =========================================================================== #
 
 suppressPackageStartupMessages({
@@ -43,9 +47,10 @@ sim_end_date    <- if (length(args) >= 2) as.Date(args[2]) else as.Date("2026-12
 as_of_date      <- if (length(args) >= 3) as.Date(args[3]) else as.Date("2024-01-01")
 seed            <- if (length(args) >= 4) as.integer(args[4]) else 42L
 # Initial site stocking. Opt-in: absent, sites start from
-# datasets/site_inventory.csv exactly as before. Given, every site is stocked
-# for this many patients through their first visits and the shipment lands
-# before the site's first patient walks in (R/seeding.R).
+# datasets/site_inventory.csv exactly as before. Given, every cohort at every
+# site is stocked for this many patients through their first dispensing visits,
+# landing before the cohort's visit 0 (R/seeding.R). With a site snapshot, a
+# seed shipped before the as-of date is already in it and is dropped.
 seed_patients   <- if (length(args) >= 5) as.integer(args[5]) else NA_integer_
 
 # The seed is an ARGUMENT, not a constant. A seed pinned inside the runner
@@ -70,6 +75,19 @@ titration <- if (file.exists(titration_csv)) read_titration(titration_csv) else 
 site_inv  <- read_csv(file.path(root, "datasets/site_inventory.csv"),  show_col_types = FALSE)
 depot_inv <- read_csv(file.path(root, "datasets/depot_inventory.csv"), show_col_types = FALSE)
 
+# Stock on the road at the as-of date, lead time by country, and an optional
+# disruption scenario (R/inventory.R). Each is skipped when its file is absent.
+opt_path <- function(p) {
+  if (!nzchar(p)) return(NULL)
+  if (!file.exists(p)) p <- file.path(root, p)
+  if (file.exists(p)) p else stop(sprintf("No such file: %s", p), call. = FALSE)
+}
+in_transit  <- opt_path(if (file.exists(file.path(root, "datasets/in_transit.csv")))
+                          "datasets/in_transit.csv" else "")
+lanes       <- opt_path(if (file.exists(file.path(root, "datasets/lanes.csv")))
+                          "datasets/lanes.csv" else "")
+disruptions <- opt_path(Sys.getenv("DISRUPTIONS", ""))
+
 enrollment <- normalize_df(enrollment)
 # The WIDE sheet is what carries the dose rungs (Option1..OptionN). Expanding
 # it here would collapse them to one quantity and throw the ladder away, so
@@ -81,7 +99,11 @@ cat(sprintf("Simulations/trials: %d   Horizon: %s   Seed: %d\n", num_simulations
 cat(sprintf("Titrating arms: %d\n", if (is.null(titration)) 0L else nrow(titration)))
 cat(sprintf("Site seeding: %s\n\n",
             if (is.na(seed_patients)) "off (using datasets/site_inventory.csv)"
-            else sprintf("%d patients/site", seed_patients)))
+            else sprintf("%d patients per cohort per site", seed_patients)))
+cat(sprintf("In transit: %s   Lanes: %s   Disruptions: %s\n\n",
+            if (is.null(in_transit)) "none" else basename(in_transit),
+            if (is.null(lanes)) "global lead time" else basename(lanes),
+            if (is.null(disruptions)) "none" else basename(disruptions)))
 
 # ---- DEMAND: enrollment -> visits (all protocols together) ---------------- #
 cat("Simulating enrollment ...\n")
@@ -107,7 +129,7 @@ if (!is.na(seed_patients)) {
   ladders <- build_ladders(dosing, titration)
   initial_receipts <- seed_sites(enrollment, ladders,
                                  list(Seed_Patients = seed_patients))
-  cat(sprintf("Seeding %d shipments across %d sites (%s units) ...\n",
+  cat(sprintf("Planning %d cohort seed shipments across %d sites (%s units) ...\n",
               nrow(initial_receipts), length(unique(initial_receipts$Site)),
               format(sum(initial_receipts$Qty), big.mark = ",")))
   mix <- seed_mix_check(ladders)
@@ -127,7 +149,8 @@ proj <- project_inventory(
                 lead_time_days = 21, unplanned_visit_pct = 0.10,
                 oversupply_pct = 0.10, start_date = as_of_date,
                 horizon_end = sim_end_date),
-  initial_receipts = initial_receipts)
+  initial_receipts = initial_receipts,
+  in_transit = in_transit, lanes = lanes, disruptions = disruptions)
 
 port <- portfolio_summary(proj)
 
@@ -138,6 +161,7 @@ write_csv(proj$daily,    file.path(outdir, "inventory_daily.csv"))
 write_csv(proj$summary,  file.path(outdir, "inventory_summary.csv"))
 if (!is.null(port$by_study))
   write_csv(port$by_study, file.path(outdir, "portfolio_by_study.csv"))
+write_csv(proj$shipments, file.path(outdir, "shipments.csv"))
 
 # ---- console report ------------------------------------------------------- #
 cat("\n================ PORTFOLIO ================\n")
@@ -148,5 +172,23 @@ cat("\n---- Sites needing attention (STOCKOUT / AT RISK) ----\n")
 attn <- proj$summary %>% filter(Status != "OK") %>%
   select(Protocol, Site, DU, Status, Start_On_Hand, Min_Days_Supply, First_Stockout)
 if (nrow(attn)) print(as.data.frame(attn), row.names = FALSE) else cat("  none\n")
+
+sh <- proj$shipments
+if (!is.null(sh) && nrow(sh)) {
+  cat(sprintf("\n---- Shipments (opening: %s) ----\n", proj$opening))
+  sd <- sh[sh$Source == "seed", ]
+  if (nrow(sd))
+    cat(sprintf("  seeds: %d planned, %d dropped (before the as-of date), %d topped up to zero, %s units shipped of %s planned\n",
+                nrow(sd), sum(grepl("^dropped", sd$Note)), sum(grepl("topped up to zero", sd$Note)),
+                format(sum(sd$Qty), big.mark = ","), format(sum(sd$Planned_Qty), big.mark = ",")))
+  it <- sh[sh$Source == "in_transit", ]
+  if (nrow(it))
+    cat(sprintf("  on the road at the as-of date: %d shipments, %s units, %d overdue\n",
+                nrow(it), format(sum(it$Qty), big.mark = ","), sum(it$Overdue)))
+  late <- sh[!is.na(sh$Delay_Days) & sh$Delay_Days > 0 & !sh$Overdue, ]
+  cat(sprintf("  held up by a disruption: %d shipments, %s units, %s days late on average\n",
+              nrow(late), format(sum(late$Qty), big.mark = ","),
+              if (nrow(late)) format(round(mean(late$Delay_Days), 1)) else "0"))
+}
 
 cat(sprintf("\nOutputs written to %s\n", outdir))
