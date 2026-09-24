@@ -8,7 +8,7 @@ shinyUI(page_navbar(
   title = mc2_brand(),
   window_title = "MC² · Monte-Carlo clinical supply simulator",
   id = "main_nav",
-  theme = mc2_theme(),
+  theme = bslib::bs_add_rules(mc2_theme(), mc2_about_css()),
   fillable = FALSE,
   header = tagList(
     shinyjs::useShinyjs(),
@@ -190,5 +190,11 @@ shinyUI(page_navbar(
           withSpinner(DT::dataTableOutput("site_alerts")))
       )
     )
-  )
+  ),
+
+  # ==================================================================== #
+  # MENU (top right): About, how to use, links. See R/about.R
+  # ==================================================================== #
+  bslib::nav_spacer(),
+  mc2_menu()
 ))

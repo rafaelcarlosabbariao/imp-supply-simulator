@@ -103,7 +103,8 @@ R -e 'shiny::runApp(".", launch.browser = TRUE)'
 
 It loads two sample studies (TRIAL-201, TRIAL-118) so you can click through
 immediately: **Study Configuration → Visits & Demand → Supply & Inventory →
-Portfolio → Site Map.**
+Portfolio → Site Map.** The **Menu** at the top right opens an About page with
+diagrams of the pipeline and the resupply rule, and a step-by-step guide.
 
 **Run headless (batch / all protocols):**
 
@@ -132,7 +133,8 @@ mapped flexibly. `Program_Inputs.xlsx` is the input template.
 │   ├── seeding.R                    # initial site stocking, sized off the ladder
 │   ├── inventory.R                  # SUPPLY: (s,S) projection, FEFO, expiry, resupply
 │   ├── newsfeed.R                   # supply-chain news (Google News RSS + risk tagging)
-│   └── brand.R                      # design tokens + themed builders (see docs/BRAND.md)
+│   ├── brand.R                      # design tokens + themed builders (see docs/BRAND.md)
+│   └── about.R                      # the About page and the top-right menu (diagrams, how-to)
 ├── scripts/
 │   ├── run_simulation.R             # headless end-to-end runner
 │   ├── generate_sample_datasets.py  # (re)generates datasets/ deterministically

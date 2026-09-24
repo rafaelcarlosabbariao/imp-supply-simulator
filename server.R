@@ -466,4 +466,6 @@ shinyServer(function(input, output, session) {
     })
     tagList(items)
   })
+  # ---- About page: step buttons and the menu's how-to link (R/about.R) -- #
+  mc2_about_server(input, session)
 })

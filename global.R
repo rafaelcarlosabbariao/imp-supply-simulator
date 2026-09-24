@@ -33,6 +33,7 @@ source("R/forecast.R", local = FALSE)
 source("R/inventory.R", local = FALSE)
 source("R/seeding.R", local = FALSE)
 source("R/brand.R", local = FALSE)
+source("R/about.R", local = FALSE)
 
 # Loading spinners in the brand blue
 options(spinner.color = MC2$brand, spinner.type = 8)
