@@ -313,6 +313,27 @@ Before 2026-09-24 the rung forecast had four faults, recorded in
 their last visit, it projected the dose just dispensed as the next one, it kept
 titrating patients who were past the window, and it pooled arms and trials.
 
+### 2.4b The three forecasts on the experiment's frame
+
+`scripts/compare_forecasts.R` simulates the frame's demand once per replication
+and runs the walk three times on it, once per forecast. The frame, seeds, depot
+and policy are the experiment's (`scripts/experiment_setup.R`): 18 protocols (9
+titrating), 689 sites, sites empty at the as-of date 2022-04-01 and stocked by
+seeds from the depot. Five replications, 2026-09-24, at `ec794a7`, with the depot
+as one lot expiring after the horizon:
+
+| Forecast | P(stockout), fixed dose | P(stockout), titrating | Stockout units (sd) | Reorders |
+|---|---|---|---|---|
+| trailing | 0.0236 | 0.4756 | 986 (43) | 10,731 |
+| rung | 0.0050 | 0.0724 | 60 (10) | 10,605 |
+| oracle (ceiling) | 0.0004 | 0.0051 | 2 (2) | 11,556 |
+
+P(stockout) is the share of a protocol's site × DUs with at least one stockout,
+averaged over protocols. The rung forecast closes 94% of the gap in stockout
+units between the trailing forecast and the oracle, with 1% fewer reorders than
+the trailing forecast. This is a comparison on every protocol, not the
+randomised experiment in `EXPERIMENT.md`; it is what motivates it.
+
 ### 2.5 Outputs
 
 **Daily** — one row per `(Protocol, Site, DU, Date)`:
