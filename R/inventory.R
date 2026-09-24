@@ -594,9 +594,8 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
 # --------------------------------------------------------------------------- #
 # In transit, lanes and disruptions
 #
-# In global clinical supply the stock on the road, and how long each lane takes
-# to deliver it, are what a crisis or a slow geography changes first. These
-# three inputs put them in front of the reorder rule.
+# Stock already moving at the as-of date, the lead time of each country's lane,
+# and the windows in which a crisis holds shipments up. All three are optional.
 # --------------------------------------------------------------------------- #
 .read_table <- function(x, what) {
   if (is.null(x)) return(NULL)

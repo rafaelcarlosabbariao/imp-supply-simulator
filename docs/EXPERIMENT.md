@@ -1,9 +1,10 @@
 # Pre-registration — does titration-aware safety stock beat a uniform rule?
 
 **Written:** 2026-08-28
-**Status:** PRE-REGISTERED. Nothing below has been run. Results, when they
-exist, go in a *Results* section appended to this file — this text is not
-edited afterwards.
+**Status:** VOID since 2026-09-24; awaiting a rewrite (see the notice below).
+It was pre-registered on 2026-08-28 and nothing below has been run. Results,
+when they exist, go in a *Results* section appended to this file — this text is
+not edited afterwards.
 **Implementation frozen at:** `e737631146536f298aec937a533ad686ab0e4c71`
 (2026-08-28T17:46:03-04:00)
 
@@ -12,6 +13,18 @@ edited afterwards.
 > the rule below this document was void and has been rewritten rather than
 > amended. Nothing had been run, so the cost was a re-read. §4, §5 and §10 carry
 > the changes.
+
+> **Void 2026-09-24.** The engine changed after the freeze at `e737631`: sites
+> are keyed by center and country (`069ffe5`), every cohort is seeded
+> (`60bfd44`), seeds ship from the depot and top up against site stock
+> (`3a87436`), in-transit stock, lanes and disruptions exist (`c312e94`), and
+> the pilot's as-of date moved to 2022-04-01 so every seed ships inside the
+> walk (`f0ac5c9`). Under the rule below this document is void and must be
+> rewritten before any confirmatory run. The deep-dive had already recorded it
+> void for a separate reason, the control arm ordering on the oracle forecast,
+> so the rewrite waits on that fix too. On the 18-protocol frame (one cohort
+> per site, every site in the USA) only `3a87436` and `f0ac5c9` change results.
+> §4 "Site seeding is held constant across arms" still holds.
 
 > **Why the hash is here.** Vectorising the demand engine changed the order in
 > which random numbers are drawn, so a seed does not mean the same thing before

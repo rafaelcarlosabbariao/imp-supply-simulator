@@ -267,3 +267,17 @@ arm a naive seed would confound the treatment effect with a startup effect.
 Seeding as a *second factor* (a 2x2 with the reorder rule) is a real experiment
 and is noted in `EXPERIMENT.md` as a pre-specified extension, deliberately not
 folded into this one.
+
+## Follow-up, 2026-09-24 — seeding by cohort
+
+The review of 2026-09-23 found four defects in the seeding described above, and
+`docs/seeding-by-cohort-plan-2026-09-24.md` records the fix. Sites are keyed by
+center and country (a center number repeats across countries). Every cohort
+gets its own seed, dated to its visit 0; before, a site was seeded once for
+every patient it would ever enrol and the stock expired before later cohorts
+opened. A seed ships from the depot on its ship date, topped up against what the
+site holds. A seed shipped before the as-of date is dropped when a site snapshot
+is given, where before it was counted on top of the snapshot.
+
+The mix finding above is unchanged. It comes from the ladder, and the ladder
+did not change.

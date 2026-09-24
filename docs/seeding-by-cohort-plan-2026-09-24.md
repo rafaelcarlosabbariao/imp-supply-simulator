@@ -1,7 +1,9 @@
 # Plan — seed each cohort, key sites by country, draw seeds from the depot
 
 **Written:** 2026-09-24
-**Status:** APPROVED 2026-09-24, with Rafael's decisions recorded in §8. In progress.
+**Status:** Phases 1–6 DONE 2026-09-24 (`069ffe5`, `60bfd44`, `3a87436`, `c312e94`,
+`f0ac5c9`, and the docs commit). Phase 7, the app, is next. Approved with
+Rafael's decisions in §8; §9 records where the build departed from the plan.
 **Base:** `94520a4` (MC² rebrand) and the About page commit that follows it.
 
 This is the implementation plan for the four seeding defects found in the review of
@@ -311,3 +313,22 @@ Each phase is one commit, and every test suite passes before it goes in.
 | D3 | Top-up |
 | D5 | Build an in-transit input (D7), with lead times by country (D8) and disruption windows (D9), for oversight of crisis and geography-specific lead times in demand planning |
 | D6 | App wiring after the engine and scripts |
+
+## 9. Where the build departed from the plan
+
+- **The shipment ledger (D10) landed in Phase 3**, since the seed checks read it
+  for dropped and topped-up seeds.
+- **Overlapping disruption windows add their delays.** D9 said windows apply once,
+  in date order; every window covering the scheduled arrival now adds its delay,
+  and a delay that pushes an arrival into another window still does not trigger
+  it.
+- **The pilot's as-of date moved** from 2022-05-01 to 2022-04-01. Seeds ship a
+  lane before they land, so the earliest leaves on 2022-04-08.
+- **The full pilot was not re-run.** Its control arm still orders on the oracle
+  forecast, so its numbers would be void for the reason the last ones were. One
+  replication confirms it runs (62 s, no depot shortfall). The re-run belongs
+  after the forecast fix.
+- **`Program_Inputs.xlsx` keeps its trailing spaces.** The generator does not
+  write the enrollment file, and `normalize_df()` trims them on the way in.
+- **Runtime.** The walk takes about 0.033 s per site × DU on the sample, as
+  before. The sample grew from 26 to 30 site × DUs when USA 1004 became a site.

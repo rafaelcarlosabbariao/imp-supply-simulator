@@ -121,27 +121,46 @@ then does the first patient walk in. Starting on-hand used to be an arbitrary
 given (`datasets/site_inventory.csv`) with no stated relationship to how many
 patients the site was about to see.
 
-`seed_sites()` derives it. Each site is stocked for `Seed_Patients` patients
-through their first `Seed_Visits` visits, and the shipment lands
-`Seed_Lead_Days` **before that site's first patient visit**. Quantities come
-from `expected_demand()` truncated to the seed window, so they are exact and
-need no simulation.
+`seed_sites()` derives it. **Each cohort at each site** (Protocol × Site × Arm ×
+Cohort, where a site is a center in a country) is stocked for `Seed_Patients`
+patients through their first `Seed_Visits` dispensing visits, and the shipment
+lands `Seed_Lead_Days` **before the cohort's enrollment start**. Enrollment is
+visit 0: the patient is entered into the database and nothing is dispensed; the
+first dispense is one cycle later. Quantities come from `expected_demand()`
+truncated to the seed window, so they are exact and need no simulation.
+
+Until 2026-09-24 a site was seeded once, for every patient it would ever enrol,
+dated to its first cohort. TRIAL-201 site 1001 was shipped 519 vials in February
+2023 for five cohorts running to December 2027; they expired in February 2025,
+before its last two cohorts (114 patients) enrolled.
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `Seed_Patients` | the site's planned cohort | patients to stock for, capped by planned enrolment |
-| `Seed_Visits` | enough to outlast one lead time | visits of cover |
+| `Seed_Patients` | the whole cohort | patients to stock for, capped by the cohort's planned enrolment |
+| `Seed_Visits` | enough to outlast one lead time | dispensing visits of cover |
 | `Seed_Buffer` | 0.10 | proportional over-ship |
-| `Seed_Lead_Days` | 21 | days before first visit that the shipment lands |
-| `Seed_Shelf_Life` | 730 | days from arrival to retest, for seeded lots |
+| `Seed_Lead_Days` | 21 | days before the cohort's visit 0 that the shipment lands |
+| `Seed_Shelf_Life` | 730 | retest for a seed with no depot to ship from |
 
 `Seed_Visits` defaults to `ceil(Seed_Lead_Days / cadence) + 1` — stock the site
 so it survives until the first reorder can physically arrive. That ties the seed
 to the constraint that actually governs it rather than to a round number.
 
-Shipments enter the **same in-transit queue a reorder uses**, so the daily walk
-needs no special case. One dated before the planning as-of date has already
-landed and is folded into opening on-hand rather than being dropped.
+**A seed is a scheduled shipment.** On its ship date (arrival less the site's
+lane lead time, §2.6) the walk tops it up and draws it from the depot:
+
+- **Top-up.** It ships `max(0, planned − (on hand + on order))` of each DU. A
+  later cohort at an open site usually holds stock from resupply, and shipping a
+  full seed on top would overstock it. A new site holds nothing and gets the
+  whole seed.
+- **From the depot.** The quantity is drawn FEFO from the depot pool, so each lot
+  keeps its real expiry, and a short depot records `Seed_Short`. With no depot
+  stock listed for that protocol × DU, the seed is supplied from outside and
+  takes `Seed_Shelf_Life`.
+- **Before the reorder.** Seeds are processed before the day's reorder decision
+  and are kept out of `Reorders` and `Reorder_Qty`.
+
+**Seeds dated before the as-of date** depend on the `opening` mode (§2.2).
 
 **Why the ladder makes this matter.** Every patient starts on rung 1, so a
 titrating arm's first visits are dominated by the *low-dose* DU in a proportion
@@ -172,6 +191,18 @@ date is historical and is not consumed against current stock (you cannot
 resupply the past). This is a key correctness point — projecting current stock
 against already-elapsed demand produces meaningless day-one stockouts.
 
+`opening` states what the position at the as-of date is made of:
+
+| `opening` | Used when | Seed landed before as-of | Seed on the road at as-of | Seed ships on or after as-of |
+|---|---|---|---|---|
+| `snapshot` (default with a site inventory) | the app, `run_simulation.R` | dropped: the snapshot counts it | dropped: the in-transit input (§2.6) records it | shipped in the walk |
+| `seeded` (default with none) | `power_pilot.R`, the tests | folded into opening on-hand | lands on its date, no depot draw | shipped in the walk |
+
+Before 2026-09-24 a landed seed was folded in even with a snapshot, so a site
+open before the as-of date had its stock counted twice. In `seeded` mode the
+engine warns when a seed shipped before the as-of date, since the demand before
+it is not simulated; set the as-of date on or before the earliest ship date.
+
 ### 2.3 Lots, FEFO, and expiry
 
 On-hand stock is tracked as **lots** `(quantity, expiry)` at each site, and as a
@@ -182,11 +213,13 @@ Each simulated day, per site:
 1. **Expire** — lots whose expiry (retest date) `≤ today` are removed and
    counted as `Expired` (they are *not* available to dispense). Depot stock
    expires the same way.
-2. **Receive** — shipments scheduled to arrive today are added to the site's
-   lots (each shipped lot keeps its own real expiry).
+2. **Receive** — shipments scheduled to arrive today (seeds, reorders and stock
+   that was on the road at the as-of date) are added to the site's lots, each
+   keeping its own real expiry.
 3. **Dispense** — the day's expected demand is consumed **first-expiry-first-out**.
    Any unmet demand is recorded as `Stockout_Units` and on-hand floors at zero.
-4. **Reorder** — see the policy below.
+4. **Seed** — any cohort seed due to ship today, topped up (§2.1a).
+5. **Reorder** — see the policy below.
 
 ### 2.4 Resupply policy — forward-coverage order-up-to (s, S)
 
@@ -231,6 +264,53 @@ days-of-supply, the **first stockout date**, and a status:
 
 **Portfolio** (`portfolio_summary`) — rolls the summary up by study and overall:
 counts of STOCKOUT / AT RISK / OK, earliest stockout per study, total expired.
+
+The daily table also carries `Seed_Shipped` and `Seed_Short`, and the summary
+`Total_Seeded`.
+
+**Shipments** (`$shipments`) — one row per shipment to a site: `Source` (`seed`,
+`reorder` or `in_transit`), `Ship_Date`, `Planned_Arrival`, `Arrival`,
+`Delay_Days`, `Planned_Qty`, `Qty`, `Overdue` and a `Note` (a seed dropped
+before the as-of date, topped up to zero, or short at the depot). Every unit
+received appears in it once. `run_simulation.R` writes it to
+`output/shipments.csv`.
+
+### 2.6 Stock in transit, lead time by country, and disruptions
+
+Three optional inputs to `project_inventory()` cover what the engine could not
+see before: stock already moving at the as-of date, lanes that take longer or
+shorter than the global lead time, and windows in which a crisis holds shipments
+up.
+
+**In transit** (`in_transit`; sample `datasets/in_transit.csv`). Shipments on the
+road at the as-of date: protocol, site (country + center, or a site key), DU,
+quantity, expected arrival (ETA), and optionally ship date, expiry and lot. Column
+names are matched flexibly, as for the inventory files. Each joins its site's
+in-transit queue and counts as on order from day one, so the reorder rule sees
+it. It draws nothing from the depot, which it left before the as-of date. A
+shipment whose ETA has passed is **overdue**: it lands on the first day, later if
+a disruption covers that day, and the ledger marks it.
+
+**Lanes** (`lanes`; sample `datasets/lanes.csv`). `Country, Lead_Time_Days`, with an
+optional `Protocol` for a study-specific lane. A site's lane replaces the global
+`lead_time_days` everywhere it is used: the arrival of reorders and seeds, the
+lead-time demand in the reorder point, the forecast windows, and a seed's ship
+date. A study lane beats a country lane, which beats the global value.
+
+**Disruptions** (`disruptions`; scenarios in `datasets/scenarios/`).
+`Country` (`*` for every site), `Start`, `End`, `Delay_Days`, and optionally
+`Known`. A shipment of any kind scheduled to land inside a window lands
+`Delay_Days` later. Overlapping windows add their delays; a delay that pushes an
+arrival into a later window does not trigger that window as well.
+
+- `Known = FALSE` (the default) is the surprise: planners keep ordering on the
+  normal lane, and the stock lands late.
+- `Known = TRUE`: an order that would land inside the window is planned on the
+  lengthened lead time, so the reorder point rises to cover it.
+
+Running a scenario both ways, on the same seed, gives the stockouts that advance
+warning of that delay would have avoided. `run_simulation.R` takes a scenario as
+`DISRUPTIONS=datasets/scenarios/<file>.csv`.
 
 ---
 

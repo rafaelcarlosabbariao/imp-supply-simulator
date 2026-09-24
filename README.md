@@ -34,7 +34,8 @@ This tool models both sides end to end so a supply manager can see problems
 | | |
 |---|---|
 | **Simulate demand** | Monte-Carlo enrollment → each patient walks a Markov chain of dosing cycles → units dispensed per site / DU / day, over many trials. |
-| **Seed the sites** | Studies run in cohorts: each site is stocked for `N` patients through their first visits, and the shipment lands **before its first patient walks in** — sized off the ladder, so a titrating site is shipped what rung 1 actually needs. |
+| **Seed the sites** | Studies run in cohorts: every cohort at every site is stocked for `N` patients through their first dispensing visits, and the shipment lands **before the cohort's visit 0** (enrollment, when nothing is dispensed). It is sized off the ladder, drawn from the depot, and topped up against stock the site already holds. |
+| **See stock on the road** | Shipments in transit at the as-of date, **lead times by country**, and **disruption windows** (a port strike, a customs hold) that delay whatever is due to land inside them — known in advance or a surprise. Every shipment is in a ledger with its planned and actual arrival. |
 | **Project supply** | An **(s, S) inventory policy** rolls stock forward day-by-day with **FEFO** consumption, **lot expiry**, depot resupply, safety stock, and lead times. |
 | **Flag risk** | Every site × dispensing-unit is classified **OK / AT&nbsp;RISK / STOCKOUT** with the exact date it first runs dry. |
 | **Map & drill down** | An interactive world map colours sites by status; click one for its per-DU detail and inventory-over-time chart. |
@@ -115,6 +116,17 @@ Rscript scripts/run_simulation.R 5 2026-12-31 2024-01-01
 #                                 └ number of Monte-Carlo trials
 ```
 
+It reads `datasets/in_transit.csv` and `datasets/lanes.csv` when present, and a
+disruption scenario when given one:
+
+```bash
+DISRUPTIONS=datasets/scenarios/global_port_strike.csv \
+  Rscript scripts/run_simulation.R 5 2026-12-31 2024-01-01
+```
+
+`output/shipments.csv` lists every seed, reorder and shipment on the road, with
+its planned and actual arrival.
+
 ## Bring your own protocol
 
 The engine is **protocol-agnostic** — it keys off column *names*, not study
@@ -122,6 +134,11 @@ codes. Supply an enrollment plan (`Protocol, Cohort, Arm, Patients,
 Enroll_Start, Enroll_End, Country, Center`) and a dosing schedule (`Protocol,
 Arm, DU_Description, Cycles, Cycle_Length, Option1…`); inventory columns are
 mapped flexibly. `Program_Inputs.xlsx` is the input template.
+
+A site is a **center in a country** (`1004 · Mexico`), because center numbers
+repeat across countries. An inventory or in-transit file whose centers repeat
+must carry a country column (`country_name` or `Country`); without one, a
+center is matched to its only site, and the run stops if it has more than one.
 
 ## Repository layout
 
@@ -141,9 +158,12 @@ mapped flexibly. `Program_Inputs.xlsx` is the input template.
 │   └── make_demo_assets.R           # regenerates the README images and site/map.html
 ├── tests/
 │   ├── test_titration.R             # correctness gate: simulator vs closed form
-│   ├── test_seeding.R               # initial stocking, and the startup DU mix
+│   ├── test_seeding.R               # site identity, per-cohort seeds, top-up, opening modes
+│   ├── test_transit.R               # stock in transit, lanes, disruptions, the ledger
 │   └── benchmark.R                  # runtime regression baseline
 ├── datasets/                        # SYNTHETIC sample data (safe, no real patient data)
+│   ├── in_transit.csv · lanes.csv   # stock on the road at 2024-01-01; lead time by country
+│   ├── scenarios/                   # disruption windows (opt-in, via DISRUPTIONS=)
 │   └── example_titration/           # a worked six-rung ladder (opt-in, see its README)
 ├── docs/                            # MODEL_THEORY.md · METHODOLOGY.md · BRAND.md · assets/
 ├── site/                            # static showcase site (Netlify)
@@ -155,7 +175,8 @@ mapped flexibly. `Program_Inputs.xlsx` is the input template.
 
 ```bash
 Rscript tests/test_titration.R   # 29 checks; exits non-zero on failure
-Rscript tests/test_seeding.R     # 19 checks
+Rscript tests/test_seeding.R     # 40 checks
+Rscript tests/test_transit.R     # 17 checks
 Rscript tests/benchmark.R        # runtime baseline
 ```
 
