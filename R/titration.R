@@ -17,9 +17,10 @@
 # not just a different quantity of one (a 15 mg vial and a 100 mg bottle are
 # separate DUs with separate lots and separate expiry). So titration
 # reallocates demand ACROSS DUs, and a restart pulls the low-dose DU months
-# after the depot stopped forecasting for it. The (s,S) reorder point in
-# inventory.R keys off a TRAILING average demand rate, which is exactly the
-# estimator that lags that kind of step change.
+# after the depot stopped forecasting for it. Under the default trailing
+# forecast (R/forecast.R) the (s,S) reorder point keys off a trailing average
+# of the site's dispensing, the estimator that lags that kind of step change;
+# the rung forecast projects the patients on each dose instead.
 #
 # Markov property: "restart from the ground if they have NEVER tolerated the
 # tolerance dose" reads as history-dependent, and is not. It is Markov on the

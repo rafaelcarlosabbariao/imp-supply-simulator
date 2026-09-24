@@ -52,6 +52,10 @@ cat("\n== 1. the default is the trailing forecast ==\n")
   orc <- run(d, stock, depot, pars, forecast = "oracle")
   ok("the oracle runs when named, and says so",
      orc$forecast == "oracle" && all(orc$summary$Forecast == "oracle"))
+  e <- tryCatch(run(d, stock, depot, modifyList(pars, list(start_date = as.Date("2026-01-01")))),
+                error = function(e) conditionMessage(e))
+  ok("an as-of date after the horizon stops the run, naming both dates",
+     grepl("2026-01-01", e) && grepl("2025-06-01", e), e)
   ok("an unknown mode stops the run",
      inherits(tryCatch(run(d, stock, depot, pars, forecast = "psychic"),
                        error = function(e) e), "error"))

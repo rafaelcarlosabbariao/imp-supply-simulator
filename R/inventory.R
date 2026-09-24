@@ -248,10 +248,11 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   # `start_date` is the planning "as-of" date: on-hand inventory is current as
   # of this day, and only demand on/after it is projected against that stock
   # (you cannot resupply the past). Demand before it is historical.
-  start_date  <- as_date_flex(p$start_date  %||% Sys.Date())
+  start_date  <- as_date_flex(p$start_date  %||% min(demand$Date, na.rm = TRUE))
   horizon_end <- as_date_flex(p$horizon_end %||% max(demand$Date, na.rm = TRUE))
-  if (start_date > horizon_end) start_date <- min(demand$Date, na.rm = TRUE)
-  if (horizon_end < start_date) horizon_end <- start_date
+  if (start_date > horizon_end)
+    stop(sprintf("The as-of date %s is after the horizon %s. Set the as-of date on or before the horizon.",
+                 start_date, horizon_end), call. = FALSE)
   # What was dispensed in the trailing window before the as-of date. A planner
   # has that history, so the trailing forecast reads it from day one.
   w_pre <- as.integer(p$trailing_window_days %||% 60L)

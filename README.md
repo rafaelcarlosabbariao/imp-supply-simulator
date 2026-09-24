@@ -51,7 +51,10 @@ This tool models both sides end to end so a supply manager can see problems
 
 A **Markov chain** describes one patient's trajectory (Screening →
 Randomization → Cycle *k* → Completed, with Discontinued/Screen-fail as
-absorbing states); dispensing happens on the transitions. A **Monte-Carlo**
+absorbing states); dispensing happens on the transitions. The engine runs the
+cycle states: every enrolled patient goes through each cycle to completion or
+the horizon. Screening, randomisation and discontinuation are in the theory
+([`MODEL_THEORY.md`](docs/MODEL_THEORY.md)) and are not simulated. A **Monte-Carlo**
 loop runs that chain across all patients `N` times and averages, turning
 uncertainty into an expected daily-demand curve. That curve feeds the inventory
 engine.

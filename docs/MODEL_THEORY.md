@@ -46,9 +46,13 @@ length jittered by a visit window (±3 days by default), so demand lands on
 realistic, slightly irregular dates rather than a perfect grid.
 
 > In the code, the state machine lives in
-> [`R/simulation.R`](../R/simulation.R): `simulate_enrollment()` seeds the
-> `Screening` state with random enrollment dates, and `simulate_visits()` walks
+> [`R/simulation.R`](../R/simulation.R): `simulate_enrollment()` gives each
+> patient a random enrollment date (visit 0), and `simulate_visits()` walks
 > each patient's chain forward, emitting a dispensing record per DU per cycle.
+> The engine runs the cycle states and `Completed` only. `Screening`,
+> `Randomization`, `Discontinued` and `Screen fail` are part of the model
+> described here and are not simulated: every enrolled patient runs through
+> all their cycles or to the horizon (METHODOLOGY §4).
 
 ---
 
