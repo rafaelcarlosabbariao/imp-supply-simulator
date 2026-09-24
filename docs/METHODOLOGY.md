@@ -406,7 +406,7 @@ safety stock, and 14 of the 18 never fell below 23 days of supply. Most of the
 flags were dips of a few days before a reorder landed.
 
 **The rule adopted, 2026-09-24.** The engine takes the rule the original
-industry tool used. Its overview deck (C399) set the reorder point a lead time before running
+industry tool used. Its overview deck set the reorder point a lead time before running
 inventory crossed safety stock, so the crossing was the routine trigger for an
 order, and it raised its alert on site inventory against the forecasted burn.
 The engine now does the same. Each day, after dispensing and the reorder

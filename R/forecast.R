@@ -124,7 +124,7 @@ FORECAST_MODES <- c("oracle", "trailing", "rung")
 # --------------------------------------------------------------------------- #
 # .forecast_short()
 # The AT RISK test: does the planner's forecast say today's stock runs out
-# before the next shipment lands? The original industry tool (the C399 deck) set the
+# before the next shipment lands? The original industry tool set the
 # reorder point a lead time before running inventory crossed safety stock, so
 # the crossing was routine, and raised its alert on site inventory against the
 # forecasted burn. This is that alert.
