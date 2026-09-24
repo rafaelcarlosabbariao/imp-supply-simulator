@@ -114,7 +114,8 @@ for (rep in seq_len(REPS)) {
   # Sites start empty and the seeds build them. The as-of date sits before the
   # earliest start, so every seed ships inside the walk, from the depot.
   pr <- project_inventory(d, empty_site_inv, depot, CONTROL,
-                          initial_receipts = receipts, opening = "seeded")
+                          initial_receipts = receipts, opening = "seeded",
+                          forecast = "trailing")
   seed_short <- sum(pr$daily$Seed_Short)
   if (seed_short > 0)
     cat(sprintf("  rep %d: the depot fell %s units short of the seeds\n", rep,

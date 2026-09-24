@@ -127,6 +127,12 @@ DISRUPTIONS=datasets/scenarios/global_port_strike.csv \
 `output/shipments.csv` lists every seed, reorder and shipment on the road, with
 its planned and actual arrival.
 
+Reorders are sized from a forecast. The default, `trailing`, averages each
+site's dispensing over the last 60 days. `FORECAST=rung` projects the patients
+on each dose forward through the titration probabilities, and `FORECAST=oracle`
+reads the demand the simulation goes on to produce, as a ceiling to compare the
+other two against ([METHODOLOGY §2.4](docs/METHODOLOGY.md)).
+
 ## Bring your own protocol
 
 The engine is **protocol-agnostic** — it keys off column *names*, not study
@@ -160,6 +166,7 @@ center is matched to its only site, and the run stops if it has more than one.
 │   ├── test_titration.R             # correctness gate: simulator vs closed form
 │   ├── test_seeding.R               # site identity, per-cohort seeds, top-up, opening modes
 │   ├── test_transit.R               # stock in transit, lanes, disruptions, the ledger
+│   ├── test_forecast.R              # the forecast modes the reorder rule orders on
 │   └── benchmark.R                  # runtime regression baseline
 ├── datasets/                        # SYNTHETIC sample data (safe, no real patient data)
 │   ├── in_transit.csv · lanes.csv   # stock on the road at 2024-01-01; lead time by country
@@ -177,6 +184,7 @@ center is matched to its only site, and the run stops if it has more than one.
 Rscript tests/test_titration.R   # 29 checks; exits non-zero on failure
 Rscript tests/test_seeding.R     # 40 checks
 Rscript tests/test_transit.R     # 17 checks
+Rscript tests/test_forecast.R    # 6 checks
 Rscript tests/benchmark.R        # runtime baseline
 ```
 

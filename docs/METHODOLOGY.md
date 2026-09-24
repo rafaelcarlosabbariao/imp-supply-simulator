@@ -223,14 +223,13 @@ Each simulated day, per site:
 
 ### 2.4 Resupply policy — forward-coverage order-up-to (s, S)
 
-Rather than sizing off a flat average (which lags the enrollment ramp), the
-policy looks at demand actually coming up. At each site on each day, using the
-known expected-demand curve:
+At each site on each day the policy asks a forecast for the demand expected
+over the lead time and over the coverage window after it (`R/forecast.R`):
 
 ```
-lead_demand      = Σ demand over the next  lead_time            days
-coverage_demand  = Σ demand over the following  target          days (after lead)
-rate             = mean daily demand over the next (lead + target) window
+lead_demand      = forecast demand over the next  lead_time            days
+coverage_demand  = forecast demand over the following  target          days (after lead)
+rate             = mean daily forecast demand over the (lead + target) window
 safety_stock     = safety_stock_days × rate
 reorder_point    = lead_demand + safety_stock            # in inventory-position units
 order_up_to (S)  = (lead_demand + coverage_demand + safety_stock) × (1 + oversupply_pct)
@@ -245,6 +244,20 @@ the depot cannot fully cover the order, the shortfall is recorded
 
 This is a standard MRP-style forward-coverage `(s, S)` policy: `s` = reorder
 point, `S` = order-up-to level, both demand-driven and time-varying.
+
+**The forecast** is one of three modes, set by `forecast =`:
+
+| Mode | What the planner is assumed to know |
+|---|---|
+| `trailing` (default) | The site × DU's dispensing over the last `trailing_window_days` (60), including the days before the as-of date, averaged and projected flat. |
+| `rung` | The patients enrolled at the site, each at their dose, their titration status and their visit number, projected forward through the protocol's titration probabilities (§2.4a). |
+| `oracle` | The demand the simulation goes on to produce. Perfect foresight, run only as a ceiling to score the other two against. |
+
+Until 2026-09-24 the default was `oracle`, so every status the app, the runner and
+the showcase reported assumed the planner knew future demand. On the sample
+(as-of 2024-01-01, 5 trials) the switch to `trailing` moves the at-risk count
+from 15 to 18 of 30 site × DUs and leaves stockouts at 0. `$summary` carries a
+`Forecast` column naming the mode each row was run under.
 
 ### 2.5 Outputs
 

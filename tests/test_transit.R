@@ -94,7 +94,9 @@ cat("\n== 4. a disruption window holds up what is due inside it ==\n")
                     Delay_Days = 20)
   it <- data.frame(Protocol = "P1", Site = c(JP, US), DU = "DRUG", Qty = 10,
                    ETA = as.Date("2024-08-15"))
-  pr <- run(d, stock, depot, pars(), in_transit = it, disruptions = win)
+  # The dates below were chosen against the oracle's order timing.
+  pr <- run(d, stock, depot, pars(), in_transit = it, disruptions = win,
+            forecast = "oracle")
   sh <- pr$shipments
   inside <- sh$Site == JP & sh$Planned_Arrival >= as.Date("2024-07-01") &
             sh$Planned_Arrival <= as.Date("2024-09-30")
@@ -110,8 +112,9 @@ cat("\n== 5. a known disruption is planned for; an unknown one is a surprise ==\
   win <- data.frame(Country = "Japan", Start = "2024-07-01", End = "2024-12-31",
                     Delay_Days = 45)
   lean <- stock; lean$site_inventory_count <- 60
-  unk <- run(d, lean, depot, pars(), disruptions = win)
-  kn  <- run(d, lean, depot, pars(), disruptions = transform(win, Known = TRUE))
+  unk <- run(d, lean, depot, pars(), disruptions = win, forecast = "oracle")
+  kn  <- run(d, lean, depot, pars(), disruptions = transform(win, Known = TRUE),
+             forecast = "oracle")
   so <- function(pr) sum(pr$summary$Total_Stockout[pr$summary$Site == JP])
   ok("an unknown 45-day delay causes stockouts at the Japan site", so(unk) > 0,
      sprintf("%.0f units", so(unk)))

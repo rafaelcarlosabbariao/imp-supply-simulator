@@ -21,11 +21,13 @@
 #
 #   "oracle"    the old behaviour. Perfect foresight. Kept as a benchmark
 #               CEILING -- the best any forecast could possibly do -- and never
-#               as an experimental arm.
+#               as an experimental arm. Runs only when asked for by name.
 #
 #   "trailing"  a causal moving average of demand actually observed at this
-#               site x DU up to today, projected flat. The classic MRP default,
-#               and the honest baseline: it uses nothing the planner lacks.
+#               site x DU up to today, projected flat, including what the site
+#               dispensed before the as-of date. The classic MRP default and the
+#               default here (since 2026-09-24): it uses nothing the planner
+#               lacks.
 #
 #   "rung"      propagates the site's CURRENT DOSE-RUNG OCCUPANCY forward
 #               through the CSP's own titration probabilities.
@@ -81,9 +83,14 @@ FORECAST_MODES <- c("oracle", "trailing", "rung")
     # history yet forecasts zero and orders nothing, which is correct -- that
     # is what the initial seed shipment is for, and it is exactly where a
     # titrating protocol is most exposed.
-    w    <- as.integer(p$trailing_window_days %||% 60L)
-    from <- max(1L, ti - w + 1L)
-    rate <- fwd(st$csum, from, ti) / (ti - from + 1L)
+    # The window reaches back before the as-of date into `st$pre`, the days
+    # this site was already dispensing, so a site open at the as-of date does
+    # not start from zero.
+    w      <- as.integer(p$trailing_window_days %||% 60L)
+    n_pre  <- length(st$pre)
+    from   <- max(1L - n_pre, ti - w + 1L)
+    before <- if (from < 1L) sum(st$pre[(n_pre + from):n_pre]) else 0
+    rate   <- (fwd(st$csum, max(1L, from), ti) + before) / (ti - from + 1L)
     return(list(rate            = rate,
                 lead_demand     = rate * lt,
                 coverage_demand = rate * tg))

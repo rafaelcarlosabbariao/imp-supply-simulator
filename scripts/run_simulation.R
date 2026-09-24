@@ -16,6 +16,8 @@
 #   datasets/in_transit.csv, datasets/lanes.csv   (read when present)
 #   DISRUPTIONS=<csv> in the environment adds a disruption scenario, e.g.
 #     DISRUPTIONS=datasets/scenarios/argentina_customs_hold.csv
+#   FORECAST=trailing|rung|oracle picks what the reorder rule orders on
+#     (default trailing; oracle is perfect foresight, a ceiling; R/forecast.R)
 # Outputs written (output/):
 #   simulated_visits.csv, inventory_daily.csv, inventory_summary.csv,
 #   portfolio_by_study.csv, shipments.csv (every seed, reorder and shipment
@@ -87,6 +89,7 @@ in_transit  <- opt_path(if (file.exists(file.path(root, "datasets/in_transit.csv
 lanes       <- opt_path(if (file.exists(file.path(root, "datasets/lanes.csv")))
                           "datasets/lanes.csv" else "")
 disruptions <- opt_path(Sys.getenv("DISRUPTIONS", ""))
+forecast    <- match.arg(Sys.getenv("FORECAST", "trailing"), FORECAST_MODES)
 
 enrollment <- normalize_df(enrollment)
 # The WIDE sheet is what carries the dose rungs (Option1..OptionN). Expanding
@@ -96,6 +99,8 @@ enrollment <- normalize_df(enrollment)
 protocols <- sort(unique(trimws(as.character(enrollment$Protocol))))
 cat(sprintf("Protocols: %s\n", paste(protocols, collapse = ", ")))
 cat(sprintf("Simulations/trials: %d   Horizon: %s   Seed: %d\n", num_simulations, sim_end_date, seed))
+cat(sprintf("Forecast: %s\n", if (forecast == "oracle")
+            "oracle (perfect foresight, a ceiling)" else forecast))
 cat(sprintf("Titrating arms: %d\n", if (is.null(titration)) 0L else nrow(titration)))
 cat(sprintf("Site seeding: %s\n\n",
             if (is.na(seed_patients)) "off (using datasets/site_inventory.csv)"
@@ -149,7 +154,7 @@ proj <- project_inventory(
                 lead_time_days = 21, unplanned_visit_pct = 0.10,
                 oversupply_pct = 0.10, start_date = as_of_date,
                 horizon_end = sim_end_date),
-  initial_receipts = initial_receipts,
+  initial_receipts = initial_receipts, forecast = forecast,
   in_transit = in_transit, lanes = lanes, disruptions = disruptions)
 
 port <- portfolio_summary(proj)

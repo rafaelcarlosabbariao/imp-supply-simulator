@@ -265,9 +265,9 @@ mc2_about_page <- function() {
 
     mc2_panel(title = "Limits of this build", icon = "triangle-exclamation",
       tags$ul(class = "mc2-limits",
-        tags$li("Reorders are sized from the demand the simulation goes on to produce (the engine's",
-                tags$code("oracle"), "forecast), so the stockout and at-risk counts here assume the",
-                "planner knew future demand. The engine's trailing-average forecast is not exposed in the app yet."),
+        tags$li("Reorders are sized from a trailing average of each site's dispensing over the last 60 days.",
+                "The engine's other forecasts, the patient-by-dose", tags$code("rung"), "forecast and the",
+                tags$code("oracle"), "ceiling, are not exposed in the app yet."),
         tags$li("The app runs every arm at a fixed dose, and starts every site from the inventory file.",
                 "Dose titration, a seed shipment for each cohort, stock in transit, lead times by country",
                 "and disruption windows exist in the engine and in", tags$code("scripts/run_simulation.R"),

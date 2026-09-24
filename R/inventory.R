@@ -134,6 +134,10 @@ suppressPackageStartupMessages({
 # params      : list of policy assumptions (see defaults below)
 #
 # initial_receipts: seed shipments from seed_sites()
+# forecast    : what the reorder rule orders on (R/forecast.R). "trailing", the
+#               default, uses only demand observed up to the day; "rung" projects
+#               the patients on each dose; "oracle" reads the realised future and
+#               is run only as a ceiling
 # opening     : "snapshot" or "seeded" (see below); NULL picks "snapshot" when
 #               a site inventory is given and "seeded" when sites start empty
 # in_transit  : shipments on the road at the as-of date (flexible columns, see
@@ -149,11 +153,12 @@ suppressPackageStartupMessages({
 #   $shipments : one row per shipment to a site -- seeds (including any dropped
 #                or topped up to zero, with the reason) and reorders
 #   $opening   : the opening mode used
+#   $forecast  : the forecast mode used (also a column of $summary)
 #   $params    : the resolved parameters used
 # --------------------------------------------------------------------------- #
 project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
                               params = list(), initial_receipts = NULL,
-                              forecast = "oracle", occupancy = NULL,
+                              forecast = "trailing", occupancy = NULL,
                               ladders = NULL, opening = NULL,
                               in_transit = NULL, lanes = NULL, disruptions = NULL) {
   p <- modifyList(list(
@@ -246,6 +251,12 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   horizon_end <- as_date_flex(p$horizon_end %||% max(demand$Date, na.rm = TRUE))
   if (start_date > horizon_end) start_date <- min(demand$Date, na.rm = TRUE)
   if (horizon_end < start_date) horizon_end <- start_date
+  # What was dispensed in the trailing window before the as-of date. A planner
+  # has that history, so the trailing forecast reads it from day one.
+  w_pre <- as.integer(p$trailing_window_days %||% 60L)
+  history <- demand %>% filter(Date < start_date, Date >= start_date - w_pre)
+  first_seen <- demand %>% group_by(Protocol, Site, DU) %>%
+    summarise(First = min(Date), .groups = "drop")
   demand <- demand %>% filter(Date >= start_date, Date <= horizon_end)
   days <- seq(start_date, horizon_end, by = "day")
   nd   <- length(days)
@@ -304,6 +315,17 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
       e <- new.env(parent = emptyenv())
       e$demand <- dv
       e$csum   <- cumsum(dv)
+      # Pre-as-of history, oldest first, over the days the site was dispensing.
+      hs <- history[history$Protocol == proto & history$DU == du & history$Site == s, ]
+      f0 <- first_seen$First[first_seen$Protocol == proto & first_seen$DU == du &
+                               first_seen$Site == s]
+      n_pre <- if (length(f0)) max(0L, min(w_pre, as.integer(start_date - f0[1]))) else 0L
+      e$pre <- numeric(n_pre)
+      if (n_pre > 0 && nrow(hs)) {
+        k <- n_pre - as.integer(start_date - hs$Date) + 1L
+        ok <- k >= 1L
+        for (j in which(ok)) e$pre[k[j]] <- e$pre[k[j]] + hs$Units[j]
+      }
       e$pool   <- list(q = p0$Qty, e = as.numeric(p0$Expiry))
       e$it_arrive <- numeric(0); e$it_q <- numeric(0); e$it_e <- numeric(0)
 
@@ -529,7 +551,7 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   shipments <- bind_rows(shipments)
   if (nrow(daily) == 0)
     return(list(daily = daily, summary = daily, shipments = shipments,
-                opening = opening, params = p))
+                opening = opening, forecast = forecast, params = p))
 
   summary <- daily %>%
     group_by(Protocol, Site, DU) %>%
@@ -554,12 +576,12 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
       !is.na(First_Stockout)              ~ "STOCKOUT",
       Min_Days_Supply < params_num(p, "safety_stock_days") ~ "AT RISK",
       TRUE                                ~ "OK"
-    )) %>%
+    ), Forecast = forecast) %>%
     arrange(factor(Status, levels = c("STOCKOUT", "AT RISK", "OK")),
             First_Stockout, Min_Days_Supply)
 
   list(daily = daily, summary = summary, shipments = shipments,
-       opening = opening, params = p)
+       opening = opening, forecast = forecast, params = p)
 }
 
 # --------------------------------------------------------------------------- #

@@ -103,7 +103,7 @@ width and no horizontal scroll.
 The stat cards, the map and the images all come from one run
 (`scripts/make_demo_assets.R`, seed 42), which prints the counts the cards should show.
 The previous page said 3 stockouts and 3 at risk, taken from an older `map.html` that no
-script produced. The engine gave 1 and 5 on 2026-09-23, and 1 and 6 across 9 sites from 2026-09-24, when center 1004 in the USA became its own site.
+script produced. The engine gave 1 and 5 on 2026-09-23, and 1 and 6 across 9 sites from 2026-09-24, when center 1004 in the USA became its own site. Later the same day the default forecast moved from the oracle to the trailing average, and the run gives 1 stockout, 7 at risk and 1 healthy.
 
 `site/assets/model_diagram.svg` is hand-written SVG. Its colours were mapped onto the
 tokens, and its loop label, which overprinted the caption, was moved beside the loop.
