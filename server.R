@@ -70,8 +70,48 @@ shinyServer(function(input, output, session) {
     site_inv       = load_default_csv("datasets/site_inventory.csv"),
     depot_inv      = load_default_csv("datasets/depot_inventory.csv"),
     site_loc       = load_default_csv("datasets/site_locations.csv"),
+    titration      = read_titration("datasets/titration_input.csv"),
+    in_transit     = load_default_csv("datasets/in_transit.csv"),
+    lanes          = load_default_csv("datasets/lanes.csv"),
+    disruptions_up = NULL,
     selected_site  = NULL
   )
+
+  # ======================================================================== #
+  # STUDY CONFIGURATION : Titration spec (optional)
+  # ======================================================================== #
+  observeEvent(input$titration_file, {
+    req(input$titration_file)
+    df <- read_upload(input$titration_file$datapath)
+    if (!is.null(df)) rv$titration <- read_titration(df)
+  })
+  # The worked example replaces the dosing schedule too: its ladder lives in
+  # the Option columns of datasets/example_titration/dosing_input.csv.
+  observeEvent(input$titration_example, {
+    dos <- sanitize_hot(load_default_csv("datasets/example_titration/dosing_input.csv"))
+    rv$dosing_src <- dos; rv$dosing_cur <- dos
+    rv$titration <- read_titration("datasets/example_titration/titration_input.csv")
+  })
+  observeEvent(input$titration_clear, rv$titration <- NULL)
+
+  output$titration_note <- renderUI({
+    t <- rv$titration
+    if (is.null(t)) return(helpText("No titration spec loaded: every arm runs at a fixed dose (Option1)."))
+    arms <- paste(trimws(t$Protocol), trimws(t$Arm), sep = " / ")
+    known <- paste(trimws(rv$dosing_cur$Protocol), trimws(rv$dosing_cur$Arm), sep = " / ")
+    miss <- setdiff(arms, known)
+    tagList(
+      helpText(sprintf("%d arm(s) titrate: %s.", length(arms), paste(arms, collapse = ", ")),
+               "Each titrating visit records the patient's dose status: titrating inside the",
+               "window, stable past it, and demoted back to titrating after a missed visit or,",
+               "with P_Revert, an adverse event or unplanned visit."),
+      if (length(miss)) helpText(style = "color:var(--mc2-stockout, #B91C1C)",
+        sprintf("Not in the dosing schedule, so ignored: %s.", paste(miss, collapse = ", "))))
+  })
+  output$titration_DT <- DT::renderDataTable({
+    req(rv$titration)
+    datatable(rv$titration, rownames = FALSE, options = list(dom = "t", scrollX = TRUE))
+  })
 
   # ======================================================================== #
   # STUDY CONFIGURATION : Enrollment plan
@@ -156,11 +196,14 @@ shinyServer(function(input, output, session) {
     validate(need(nrow(patients) > 0, "Run enrollment first."))
     n <- nrow(patients)
     withProgress(message = "Simulating visits & dispensing...", min = 0, max = n, value = 0, {
-      out <- simulate_visits(
+      out <- tryCatch(simulate_visits(
         patients, rv$dosing_cur,
         visit_window = input$visit_window,
         simulation_end_date = input$sim_end_date,
-        progress = function(i) setProgress(value = i))
+        progress = function(i) setProgress(value = i),
+        titration = rv$titration), error = function(e) e)
+      validate(need(!inherits(out, "error"),
+                    if (inherits(out, "error")) conditionMessage(out) else ""))
       validate(need(nrow(out) > 0,
         "No dispensing generated - check that dosing Arms match enrollment Arms."))
       add_date_windows(out)
@@ -214,6 +257,49 @@ shinyServer(function(input, output, session) {
     if (!is.null(df)) rv$depot_inv <- df
   })
 
+  observeEvent(input$in_transit_file, {
+    req(input$in_transit_file)
+    df <- read_upload(input$in_transit_file$datapath)
+    if (!is.null(df)) rv$in_transit <- df
+  })
+  observeEvent(input$lanes_file, {
+    req(input$lanes_file)
+    df <- read_upload(input$lanes_file$datapath)
+    if (!is.null(df)) rv$lanes <- df
+  })
+  observeEvent(input$disruptions_file, {
+    req(input$disruptions_file)
+    df <- read_upload(input$disruptions_file$datapath)
+    if (!is.null(df)) { rv$disruptions_up <- df; updateSelectInput(session, "scenario", selected = "") }
+  })
+  scen <- list.files("datasets/scenarios", pattern = "\\.csv$")
+  updateSelectInput(session, "scenario",
+                    choices = c("None" = "", setNames(scen, gsub("_", " ", sub("\\.csv$", "", scen)))))
+  disruptions <- reactive({
+    if (nzchar(input$scenario %||% "")) read.csv(file.path("datasets/scenarios", input$scenario),
+                                                 stringsAsFactors = FALSE)
+    else rv$disruptions_up
+  })
+
+  output$forecast_note <- renderUI({
+    switch(input$forecast_mode,
+      trailing = helpText("Each site's dispensing over the last 60 days, averaged and projected flat."),
+      rung = helpText("Every patient enrolled at a site, projected from their dose, their",
+                      "status and their visit number through the titration probabilities.",
+                      "A fixed-dose arm is a headcount."),
+      oracle = helpText("Orders are sized from the demand the simulation goes on to produce.",
+                        "No planner has that; use it as a ceiling to compare the others against."))
+  })
+  output$shipping_note <- renderUI({
+    it <- rv$in_transit; ln <- rv$lanes; ds <- disruptions()
+    helpText(sprintf("%s on the road · %s · %s.",
+      if (is.null(it) || !nrow(it)) "no shipments" else sprintf("%d shipment(s)", nrow(it)),
+      if (is.null(ln) || !nrow(ln)) sprintf("%d-day lead time everywhere", input$lead_time_days)
+      else sprintf("lead times for %d countr%s", nrow(ln), if (nrow(ln) == 1) "y" else "ies"),
+      if (is.null(ds) || !nrow(ds)) "no disruption windows"
+      else sprintf("%d disruption window(s)", nrow(ds))))
+  })
+
   output$site_inv_DT <- DT::renderDataTable({
     datatable(rv$site_inv, caption = "Current Site Inventory (on hand)",
               rownames = FALSE, options = list(scrollX = TRUE, pageLength = 5))
@@ -228,10 +314,25 @@ shinyServer(function(input, output, session) {
     v <- visit_data()
     demand <- compute_demand(v)
     validate(need(nrow(demand) > 0, "No demand to project - run the visit simulation first."))
-    validate(need(nrow(rv$site_inv) > 0, "Provide site inventory."))
+    seeded <- input$opening_mode == "seeded"
+    validate(need(seeded || nrow(rv$site_inv) > 0,
+                  "Provide a site inventory, or choose empty sites stocked by seeds."))
+    site_inv <- if (seeded) rv$site_inv[0, , drop = FALSE] else rv$site_inv
+    receipts <- NULL
+    if (seeded || isTRUE(input$seed_on)) {
+      sp <- input$seed_patients
+      receipts <- seed_sites(rv$enrollment_cur, build_ladders(rv$dosing_cur, rv$titration),
+                             list(Seed_Patients = if (is.null(sp) || is.na(sp)) NA else sp,
+                                  Seed_Lead_Days = input$seed_lead_days %||% 21))
+    }
+    rung <- input$forecast_mode == "rung"
     withProgress(message = "Projecting inventory (FEFO + expiry + resupply)...", value = 0.5, {
-      project_inventory(
-        demand, rv$site_inv, rv$depot_inv,
+      # The engine's messages and warnings (dropped seeds, seeds shipped before
+      # the as-of date) are shown under the run button.
+      notes <- character(0)
+      keep <- function(cnd) notes <<- c(notes, trimws(conditionMessage(cnd)))
+      out <- tryCatch(withCallingHandlers(project_inventory(
+        demand, site_inv, rv$depot_inv,
         params = list(
           safety_stock_days   = input$safety_stock_days,
           target_days         = input$target_days,
@@ -239,8 +340,46 @@ shinyServer(function(input, output, session) {
           unplanned_visit_pct = input$unplanned_visit_pct / 100,
           oversupply_pct      = input$oversupply_pct / 100,
           start_date          = input$as_of_date,
-          horizon_end         = input$sim_end_date))
+          horizon_end         = input$sim_end_date),
+        initial_receipts = receipts,
+        forecast = input$forecast_mode,
+        visits  = if (rung) bind_rows(enrollment_data(), v),
+        ladders = if (rung) build_ladders(rv$dosing_cur, rv$titration),
+        opening = input$opening_mode,
+        in_transit = if (!is.null(rv$in_transit) && nrow(rv$in_transit)) rv$in_transit,
+        lanes = if (!is.null(rv$lanes) && nrow(rv$lanes)) rv$lanes,
+        disruptions = disruptions()),
+        warning = function(w) { keep(w); invokeRestart("muffleWarning") },
+        message = function(m) { keep(m); invokeRestart("muffleMessage") }),
+        error = function(e) e)
+      rv$proj_notes <- notes
+      validate(need(!inherits(out, "error"),
+                    if (inherits(out, "error")) conditionMessage(out) else ""))
+      out
     })
+  })
+
+  output$projection_notes <- renderUI({
+    req(input$run_inventory > 0)
+    projection()
+    if (length(rv$proj_notes)) tagList(lapply(rv$proj_notes, function(n) helpText(n)))
+  })
+
+  # ---- the shipment ledger ------------------------------------------------ #
+  output$shipments_DT <- DT::renderDataTable({
+    req(input$run_inventory > 0)
+    sh <- projection()$shipments
+    validate(need(nrow(sh) > 0, "No shipments in this projection."))
+    sh <- sh %>% arrange(Arrival, Protocol, Site) %>%
+      mutate(Source = recode(Source, seed = "Seed", reorder = "Reorder",
+                             in_transit = "On the road"),
+             Overdue = ifelse(Overdue, "overdue", ""))
+    datatable(sh, rownames = FALSE, filter = "top",
+              extensions = c("Buttons", "Scroller"),
+              options = list(dom = "Bfrtip", scrollX = TRUE, scrollY = "320px",
+                             scrollCollapse = TRUE, buttons = c("copy", "csv", "excel"))) %>%
+      DT::formatStyle("Overdue", color = STATUS_FILL[["STOCKOUT"]], fontWeight = "600") %>%
+      DT::formatStyle("Delay_Days", color = DT::styleInterval(0, c("inherit", STATUS_FILL[["AT RISK"]])))
   })
 
   # ---- KPI value boxes --------------------------------------------------- #
@@ -254,7 +393,10 @@ shinyServer(function(input, output, session) {
         mc2_kpi("Stockout", o$Stockouts, "circle-xmark", status = "STOCKOUT"),
         mc2_kpi("At risk", o$At_Risk, "triangle-exclamation", status = "AT RISK"),
         mc2_kpi("OK", o$OK, "circle-check"),
-        mc2_kpi("Units expired", round(o$Total_Expired), "hourglass-end"))
+        mc2_kpi("Units expired", round(o$Total_Expired), "hourglass-end"),
+        mc2_kpi("Units seeded", round(sum(projection()$summary$Total_Seeded)), "seedling"),
+        mc2_kpi("Overdue shipments", sum(projection()$shipments$Overdue), "truck",
+                status = if (sum(projection()$shipments$Overdue) > 0) "AT RISK"))
   })
 
   output$portfolio_by_study_DT <- DT::renderDataTable({
@@ -382,6 +524,19 @@ shinyServer(function(input, output, session) {
         tags$td(mc2_status_chip(s$Status[i]))
       )
     })
+    sh <- projection()$shipments
+    sh <- sh[sh$Protocol == proto & sh$Site == site & !is.na(sh$Arrival) & sh$Qty > 0, , drop = FALSE]
+    asof <- projection()$params$start_date
+    sh <- sh[sh$Overdue | sh$Arrival >= as.Date(asof), , drop = FALSE]
+    sh <- utils::head(sh[order(sh$Arrival), , drop = FALSE], 8)
+    ship_rows <- lapply(seq_len(nrow(sh)), function(i) tags$tr(
+      tags$td(sh$DU[i]),
+      tags$td(c(seed = "Seed", reorder = "Reorder", in_transit = "On the road")[[sh$Source[i]]]),
+      tags$td(style = "text-align:right", round(sh$Qty[i])),
+      tags$td(as.character(sh$Planned_Arrival[i])),
+      tags$td(as.character(sh$Arrival[i]),
+              if (sh$Delay_Days[i] > 0) tags$span(class = "mc2-muted", sprintf(" (+%d d)", sh$Delay_Days[i])),
+              if (isTRUE(sh$Overdue[i])) tags$b(style = sprintf("color:%s", STATUS_FILL[["STOCKOUT"]]), " overdue"))))
     cohorts <- if (nrow(enr)) paste(unique(enr$Cohort), collapse = ", ") else "—"
     planned <- if (nrow(enr)) sum(as.numeric(enr$Patients), na.rm = TRUE) else NA
     window  <- if (nrow(enr)) sprintf("%s → %s", min(enr$Enroll_Start), max(enr$Enroll_End)) else "—"
@@ -395,7 +550,13 @@ shinyServer(function(input, output, session) {
       tags$table(class = "table table-sm",
         tags$thead(tags$tr(tags$th("DU"), tags$th("On hand"),
                            tags$th("Days supply"), tags$th("First stockout"), tags$th("Status"))),
-        tags$tbody(du_rows))
+        tags$tbody(du_rows)),
+      if (length(ship_rows)) tagList(
+        tags$p(tags$b("Inbound shipments"), tags$span(class = "mc2-muted", " (the next eight, and any overdue)")),
+        tags$table(class = "table table-sm",
+          tags$thead(tags$tr(tags$th("DU"), tags$th("Source"), tags$th("Qty"),
+                             tags$th("Planned"), tags$th("Arrives"))),
+          tags$tbody(ship_rows)))
     )
   })
 
@@ -419,13 +580,17 @@ shinyServer(function(input, output, session) {
   # ---- alerts board ------------------------------------------------------- #
   output$site_alerts <- DT::renderDataTable({
     req(input$run_inventory > 0)
+    od <- projection()$shipments %>% filter(Overdue) %>%
+      count(Protocol, Site, name = "Overdue_Shipments")
     d <- site_map_df() %>%
-      filter(Status != "OK") %>%
+      left_join(od, by = c("Protocol", "Site")) %>%
+      mutate(Overdue_Shipments = coalesce(Overdue_Shipments, 0L)) %>%
+      filter(Status != "OK" | Overdue_Shipments > 0) %>%
       mutate(Earliest_Stockout = as.Date(Earliest_Stockout, origin = "1970-01-01"),
              Min_Days_Supply = round(Min_Days_Supply, 1)) %>%
       arrange(factor(Status, levels = c("STOCKOUT", "AT RISK")), Earliest_Stockout) %>%
       select(Protocol, Site, Country = country_name, Status,
-             Min_Days_Supply, Earliest_Stockout, Stockout_DUs, AtRisk_DUs)
+             Min_Days_Supply, Earliest_Stockout, Stockout_DUs, AtRisk_DUs, Overdue_Shipments)
     datatable(d, rownames = FALSE,
               caption = "Sites needing attention, worst first",
               options = list(dom = "t", scrollX = TRUE, pageLength = 20)) %>%

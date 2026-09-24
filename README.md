@@ -107,7 +107,11 @@ R -e 'shiny::runApp(".", launch.browser = TRUE)'
 
 It loads two sample studies (TRIAL-201, TRIAL-118) so you can click through
 immediately: **Study Configuration → Visits & Demand → Supply & Inventory →
-Portfolio → Site Map.** The **Menu** at the top right opens an About page with
+Portfolio → Site Map.** Tab 1 takes an optional titration spec (**Load the
+worked example** shows one). Tab 3 chooses the forecast, starts from the site
+inventory file or from empty sites stocked by seeds, and takes stock in
+transit, lead times by country and a disruption scenario; its Shipments table
+lists every seed, reorder and shipment on the road. The **Menu** at the top right opens an About page with
 diagrams of the pipeline and the resupply rule, and a step-by-step guide.
 
 **Run headless (batch / all protocols):**
@@ -170,6 +174,7 @@ center is matched to its only site, and the run stops if it has more than one.
 │   ├── test_seeding.R               # site identity, per-cohort seeds, top-up, opening modes
 │   ├── test_transit.R               # stock in transit, lanes, disruptions, the ledger
 │   ├── test_forecast.R              # the forecast modes the reorder rule orders on
+│   ├── test_app.R                   # the app driven from tab 1 to tab 5 (shiny::testServer)
 │   └── benchmark.R                  # runtime regression baseline
 ├── datasets/                        # SYNTHETIC sample data (safe, no real patient data)
 │   ├── in_transit.csv · lanes.csv   # stock on the road at 2024-01-01; lead time by country
@@ -187,7 +192,8 @@ center is matched to its only site, and the run stops if it has more than one.
 Rscript tests/test_titration.R   # 29 checks; exits non-zero on failure
 Rscript tests/test_seeding.R     # 40 checks
 Rscript tests/test_transit.R     # 17 checks
-Rscript tests/test_forecast.R    # 27 checks
+Rscript tests/test_forecast.R    # 28 checks
+Rscript tests/test_app.R         # 15 checks
 Rscript tests/benchmark.R        # runtime baseline
 ```
 
