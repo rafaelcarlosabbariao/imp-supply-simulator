@@ -333,5 +333,5 @@ track that on top of visit counts (7.2); push once, at the end (7.3).
   `results/confirmatory/`.
 - **D5 decided (2026-09-24).** AT RISK now flags a pair when the planner's own
   forecast says its stock runs out before the next shipment lands, the alert
-  of the Pfizer-era tool's overview deck (METHODOLOGY §2.5a). The showcase
+  of the original industry tool's overview deck (METHODOLOGY §2.5a). The showcase
   cards and map were regenerated: 1 stockout, 0 at risk, 8 healthy.
