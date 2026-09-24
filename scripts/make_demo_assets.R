@@ -44,8 +44,9 @@ p1 <- v %>% filter(!is.na(DU_Desc)) %>%
 ggsave(file.path(out, "demo_demand.png"), p1, width = 9, height = 4.6, dpi = 130)
 
 # 2. inventory saw-tooth for one site (all sites on one axis join into a solid fill)
-st <- pr$daily %>% filter(Protocol == "TRIAL-118", trimws(as.character(Site)) == "1001") %>%
+st <- pr$daily %>% filter(Protocol == "TRIAL-118", sub(" · .*$", "", trimws(as.character(Site))) == "1001") %>%
   mutate(Date = as.Date(Date))
+if (!nrow(st)) stop("no daily rows for TRIAL-118 site 1001: check the Site label format")
 p2 <- ggplot(st, aes(Date, On_Hand_End, color = DU)) +
   geom_line(linewidth = 0.6) +
   geom_point(data = st %>% filter(Stockout_Units > 1e-9), color = STATUS_FILL[["STOCKOUT"]], size = 1) +
