@@ -387,23 +387,23 @@ before the as-of date, topped up to zero, or short at the depot). Every unit
 received appears in it once. `run_simulation.R` writes it to
 `output/shipments.csv`.
 
-### 2.5a How often AT RISK fires
+### 2.5a How AT RISK is decided
 
-A site × DU is AT RISK if its days of supply drop below the safety stock on any
-day of the horizon. Stock normally falls to about the safety level just before
-a delivery, so the rule was measured on 2026-09-24 against the sample (as-of
-2024-01-01, 5 trials, trailing forecast, 1,096 days):
+Until 2026-09-24 a site × DU was AT RISK if its days of supply dropped below the
+safety stock on any day of the horizon. Stock normally falls to about the safety
+level just before a delivery, so that rule was measured on 2026-09-24 against
+the sample (as-of 2024-01-01, 5 trials, trailing forecast, 1,096 days):
 
-| Longest run below safety stock | AT RISK pairs |
+| Longest run below safety stock | Pairs flagged by the old rule |
 |---|---|
 | 1–3 days | 8 |
 | 4–7 days | 8 |
 | 8–14 days | 1 |
 | 15–30 days | 1 |
 
-18 of 30 pairs are AT RISK. Together they spend 0.5% of their days below the
-safety stock, and 14 of the 18 never fall below 23 days of supply. Most of the
-flags are dips of a few days before a reorder lands.
+The old rule flagged 18 of 30 pairs. Together they spent 0.5% of their days below the
+safety stock, and 14 of the 18 never fell below 23 days of supply. Most of the
+flags were dips of a few days before a reorder landed.
 
 **The rule adopted, 2026-09-24.** Rafael chose the rule the Pfizer-era tool
 used. Its overview deck (C399) set the reorder point a lead time before running

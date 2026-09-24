@@ -171,7 +171,8 @@ center is matched to its only site, and the run stops if it has more than one.
 ├── scripts/
 │   ├── run_simulation.R             # headless end-to-end runner
 │   ├── generate_sample_datasets.py  # (re)generates datasets/ deterministically
-│   └── make_demo_assets.R           # regenerates the README images and site/map.html
+│   ├── make_demo_assets.R           # regenerates the README images and site/map.html
+│   └── build_methodology_page.R     # renders docs/METHODOLOGY.md as site/methodology.html (--check for drift)
 ├── tests/
 │   ├── test_titration.R             # correctness gate: simulator vs closed form
 │   ├── test_seeding.R               # site identity, per-cohort seeds, top-up, opening modes
