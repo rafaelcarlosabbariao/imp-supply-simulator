@@ -432,4 +432,47 @@ for (p, center, _c), country in sorted(sites.items()):
     ))
 write_csv("site_locations.csv", list(loc_rows[0].keys()), loc_rows)
 
+# --------------------------------------------------------------------------- #
+# 8. lanes.csv  (lead time, depot to site, by country; synthetic)
+# 9. in_transit.csv  (shipments on the road at the as-of date)
+# 10. scenarios/  (disruption windows; opt-in, never loaded by default)
+#    A separate random stream, so adding these leaves files 1-7 unchanged.
+# --------------------------------------------------------------------------- #
+LANES = {"USA": 7, "Canada": 10, "Mexico": 21, "Argentina": 35,
+         "Israel": 14, "Korea": 12, "Japan": 12}
+write_csv("lanes.csv", ["Country", "Lead_Time_Days"],
+          [dict(Country=c, Lead_Time_Days=d) for c, d in sorted(LANES.items())])
+
+rng = random.Random(SEED + 101)
+transit_rows = []
+for (p, center, _c), country in sorted(sites.items()):
+    for du in dus_by_protocol.get(p, []):
+        if rng.random() > 0.30:            # about a third of site x DUs have stock moving
+            continue
+        lane = LANES.get(country.strip(), 21)
+        shipped = AS_OF - timedelta(days=rng.randint(1, lane + 3))
+        eta = shipped + timedelta(days=lane)          # some are already overdue
+        qtys = [d["qty"] for d in dosing_long if d["protocol"] == p and d["du"] == du]
+        per_cycle = max(qtys) if qtys else 1
+        lot_counter += 1
+        transit_rows.append(dict(
+            protocol_id=p, center_number=center, country_name=country.strip(),
+            du_description=du, quantity=max(1, int(round(per_cycle * rng.uniform(4, 12)))),
+            ship_date=shipped.isoformat(), eta=eta.isoformat(),
+            retest_date=(AS_OF + timedelta(days=rng.choice([365, 540, 730]))).isoformat(),
+            lot_id=lot_id(p, lot_counter),
+            origin=DEPOTS.get(country.strip(), "Global Depot"),
+        ))
+write_csv("in_transit.csv", list(transit_rows[0].keys()), transit_rows)
+
+os.makedirs(os.path.join(OUT, "scenarios"), exist_ok=True)
+write_csv(os.path.join("scenarios", "argentina_customs_hold.csv"),
+          ["Country", "Start", "End", "Delay_Days", "Known"],
+          [dict(Country="Argentina", Start="2024-03-01", End="2024-05-31",
+                Delay_Days=28, Known="FALSE")])
+write_csv(os.path.join("scenarios", "global_port_strike.csv"),
+          ["Country", "Start", "End", "Delay_Days", "Known"],
+          [dict(Country="*", Start="2024-09-01", End="2024-10-15",
+                Delay_Days=14, Known="FALSE")])
+
 print("\nAll datasets written to:", OUT)

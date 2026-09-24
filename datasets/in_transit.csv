@@ -1,0 +1,12 @@
+protocol_id,center_number,country_name,du_description,quantity,ship_date,eta,retest_date,lot_id,origin
+TRIAL-118,1001,USA,Compound-B 15 mg bottle 70 ct,11,2023-12-24,2023-12-31,2024-12-31,TRIALOT1043,US Central Depot
+TRIAL-118,1001,USA,Compound-C 100 mg Bottle 30 ct,53,2023-12-28,2024-01-04,2024-12-31,TRIALOT1044,US Central Depot
+TRIAL-118,1003,Israel,Compound-C 100 mg Bottle 30 ct,23,2023-12-28,2024-01-11,2025-12-31,TRIALOT1045,EMEA Depot
+TRIAL-118,1004,Mexico,Compound-B 15 mg bottle 70 ct,13,2023-12-11,2024-01-01,2024-12-31,TRIALOT1046,US Central Depot
+TRIAL-118,1004,Mexico,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),1,2023-12-09,2023-12-30,2024-12-31,TRIALOT1047,US Central Depot
+TRIAL-118,1004,USA,Compound-B 15 mg bottle 70 ct,11,2023-12-31,2024-01-07,2025-06-24,TRIALOT1048,US Central Depot
+TRIAL-118,1004,USA,Compound-C 25 mg Bottle 30 ct,15,2023-12-30,2024-01-06,2025-06-24,TRIALOT1049,US Central Depot
+TRIAL-118,1005,Argentina,Compound-C 25 mg Bottle 30 ct,10,2023-12-01,2024-01-05,2024-12-31,TRIALOT1050,US Central Depot
+TRIAL-201,1001,USA,Compound-A 15 mg/vial (1x/carton),7,2023-12-28,2024-01-04,2025-12-31,TRIALOT1051,US Central Depot
+TRIAL-201,1002,Korea,Compound-A 15 mg/vial (1x/carton),12,2023-12-19,2023-12-31,2025-06-24,TRIALOT1052,APAC Depot
+TRIAL-201,1003,Japan,Diluent for Compound-A 15 mg/vial (1x/carton),7,2023-12-17,2023-12-29,2025-06-24,TRIALOT1053,APAC Depot

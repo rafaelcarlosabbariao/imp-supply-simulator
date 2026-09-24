@@ -136,6 +136,12 @@ suppressPackageStartupMessages({
 # initial_receipts: seed shipments from seed_sites()
 # opening     : "snapshot" or "seeded" (see below); NULL picks "snapshot" when
 #               a site inventory is given and "seeded" when sites start empty
+# in_transit  : shipments on the road at the as-of date (flexible columns, see
+#               .map_in_transit); optional, a data.frame or a CSV path
+# lanes       : lead time by country -- Country, Lead_Time_Days [, Protocol];
+#               a site with no lane uses params$lead_time_days
+# disruptions : Country ("*" = every site), Start, End, Delay_Days [, Known];
+#               a shipment due to land inside a window lands Delay_Days later
 #
 # Returns a list:
 #   $daily     : long projection, one row per Protocol x Site x DU x Date
@@ -148,7 +154,8 @@ suppressPackageStartupMessages({
 project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
                               params = list(), initial_receipts = NULL,
                               forecast = "oracle", occupancy = NULL,
-                              ladders = NULL, opening = NULL) {
+                              ladders = NULL, opening = NULL,
+                              in_transit = NULL, lanes = NULL, disruptions = NULL) {
   p <- modifyList(list(
     safety_stock_days   = 30,   # buffer, in days of average demand
     target_days         = 90,   # order-up-to level, in days of average demand
@@ -215,12 +222,22 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   opening <- if (is.null(opening)) (if (nrow(site_inv) > 0) "snapshot" else "seeded")
              else match.arg(opening, c("snapshot", "seeded"))
 
+  # Stock on the road at the as-of date, lead time by country, and the windows
+  # in which a crisis holds shipments up. See .map_in_transit(), .read_lanes()
+  # and .read_disruptions() below.
+  it_in <- .map_in_transit(in_transit)
+  lanes <- .read_lanes(lanes)
+  disr  <- .read_disruptions(disruptions)
+
   # Sites known from the plan: every site with demand or a seed shipment.
   known_sites <- unique(rbind(
     data.frame(Protocol = demand$Protocol, Site = demand$Site, stringsAsFactors = FALSE),
     if (!is.null(init_rx)) data.frame(Protocol = init_rx$Protocol, Site = init_rx$Site,
                                       stringsAsFactors = FALSE)))
   site_inv$Location <- .resolve_site_keys(site_inv$Protocol, site_inv$Location, known_sites)
+  if (!is.null(it_in))
+    it_in$Location <- .resolve_site_keys(it_in$Protocol, it_in$Location, known_sites,
+                                         "In-transit input")
 
   # `start_date` is the planning "as-of" date: on-hand inventory is current as
   # of this day, and only demand on/after it is projected against that stock
@@ -244,6 +261,8 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   combos <- bind_rows(combos, site_inv %>% transmute(Protocol, DU))
   if (!is.null(init_rx))
     combos <- bind_rows(combos, init_rx %>% transmute(Protocol, DU))
+  if (!is.null(it_in))
+    combos <- bind_rows(combos, it_in %>% transmute(Protocol, DU))
   combos <- combos %>% distinct(Protocol, DU)
 
   for (ci in seq_len(nrow(combos))) {
@@ -252,9 +271,12 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
     d_pd <- demand %>% filter(Protocol == proto, DU == du)
     ir_pd <- if (is.null(init_rx)) NULL
              else init_rx[init_rx$Protocol == proto & init_rx$DU == du, , drop = FALSE]
+    it_pd <- if (is.null(it_in)) NULL
+             else it_in[it_in$Protocol == proto & it_in$DU == du, , drop = FALSE]
     sites <- sort(unique(c(d_pd$Site,
                            site_inv$Location[site_inv$Protocol == proto & site_inv$DU == du],
-                           if (is.null(ir_pd)) NULL else ir_pd$Site)))
+                           if (is.null(ir_pd)) NULL else ir_pd$Site,
+                           if (is.null(it_pd)) NULL else it_pd$Location)))
     if (length(sites) == 0) next
 
     # shared depot pool for this protocol x DU (vectors; expiry as day-number)
@@ -285,8 +307,29 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
       e$pool   <- list(q = p0$Qty, e = as.numeric(p0$Expiry))
       e$it_arrive <- numeric(0); e$it_q <- numeric(0); e$it_e <- numeric(0)
 
-      e$lt <- lt
-      e$lg <- .ledger_new()
+      # This site's lane, and the disruption windows that reach it.
+      e$lt  <- .site_lead_time(lanes, proto, s, lt)
+      e$dis <- .site_disruptions(disr, s)
+      e$lg  <- .ledger_new()
+
+      # Stock on the road at the as-of date. It left the depot before the
+      # as-of date, so it draws nothing from the depot figure; it counts as on
+      # order from day one, so the reorder rule sees it. One whose ETA has
+      # already passed is overdue: it lands on the first day, later still if
+      # a disruption window covers that day.
+      if (!is.null(it_pd)) {
+        r1 <- it_pd[it_pd$Location == s, , drop = FALSE]
+        for (k in seq_len(nrow(r1))) {
+          eta  <- as.numeric(r1$ETA[k])
+          late <- eta < start_n
+          arr  <- .arrival(e, max(eta, start_n))
+          e$it_arrive <- c(e$it_arrive, arr); e$it_q <- c(e$it_q, r1$Qty[k])
+          e$it_e <- c(e$it_e, as.numeric(r1$Expiry[k]))
+          .ledger_add(e, "in_transit", as.numeric(r1$Ship_Date[k]), eta, arr,
+                      r1$Qty[k], r1$Qty[k],
+                      if (late) "overdue at the as-of date" else "", overdue = late)
+        }
+      }
       e$sd_day <- numeric(0); e$sd_arr <- numeric(0)
       e$sd_plan <- numeric(0); e$sd_exp <- numeric(0)
       if (!is.null(ir_pd)) {
@@ -307,9 +350,10 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
                         "landed before the as-of date: opening on-hand")
             early_ship <- min(early_ship, ship)
           } else {
-            e$it_arrive <- c(e$it_arrive, arr); e$it_q <- c(e$it_q, qty)
+            got <- .arrival(e, arr)
+            e$it_arrive <- c(e$it_arrive, got); e$it_q <- c(e$it_q, qty)
             e$it_e <- c(e$it_e, ex)
-            .ledger_add(e, "seed", ship, arr, arr, qty, qty, "on the road at the as-of date")
+            .ledger_add(e, "seed", ship, arr, got, qty, qty, "on the road at the as-of date")
             early_ship <- min(early_ship, ship)
           }
         }
@@ -386,16 +430,16 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
               shipped <- pull$consumed; short <- pull$shortfall
               m <- length(pull$taken_q)
               if (m) {
-                st$it_arrive <- c(st$it_arrive, rep(today_n + st$lt, m))
+                st$it_arrive <- c(st$it_arrive, rep(.arrival(st, today_n + st$lt), m))
                 st$it_q <- c(st$it_q, pull$taken_q); st$it_e <- c(st$it_e, pull$taken_e)
               }
             } else if (want > 0) {
               shipped <- want
-              st$it_arrive <- c(st$it_arrive, today_n + st$lt)
+              st$it_arrive <- c(st$it_arrive, .arrival(st, today_n + st$lt))
               st$it_q <- c(st$it_q, want); st$it_e <- c(st$it_e, st$sd_exp[k])
             }
             seed_today <- seed_today + shipped; seed_short <- seed_short + short
-            .ledger_add(st, "seed", today_n, st$sd_arr[k], today_n + st$lt,
+            .ledger_add(st, "seed", today_n, st$sd_arr[k], .arrival(st, today_n + st$lt),
                         st$sd_plan[k], shipped,
                         if (want == 0) "topped up to zero: the site already held the planned quantity"
                         else if (short > 0) sprintf("depot short by %s", format(short))
@@ -408,8 +452,13 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
         #    so orders track the enrolment ramp instead of lagging it.
         on_order <- if (length(st$it_q)) sum(st$it_q) else 0
         reorder_qty <- 0; depot_short <- 0; want <- 0
-        fc <- .forecast_window(forecast, st, ti, nd, lt, tg, p)
-        if (is.null(fc)) fc <- .forecast_window("trailing", st, ti, nd, lt, tg, p)
+        # The planner orders on this site's lane lead time, lengthened by any
+        # KNOWN disruption the order would land in. An unknown one is a
+        # surprise: the order is planned on the normal lane and lands late.
+        lt_plan <- if (is.null(st$dis)) st$lt
+                   else st$lt + .delay_for(st$dis, today_n + st$lt, known_only = TRUE)
+        fc <- .forecast_window(forecast, st, ti, nd, lt_plan, tg, p)
+        if (is.null(fc)) fc <- .forecast_window("trailing", st, ti, nd, lt_plan, tg, p)
         rate            <- fc$rate
         lead_demand     <- fc$lead_demand
         coverage_demand <- fc$coverage_demand
@@ -428,11 +477,11 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
               if (reorder_qty > 0) {
                 # each shipped lot keeps its own real expiry (FEFO from depot)
                 m <- length(pull$taken_q)
-                st$it_arrive <- c(st$it_arrive, rep(today_n + st$lt, m))
+                st$it_arrive <- c(st$it_arrive, rep(.arrival(st, today_n + st$lt), m))
                 st$it_q <- c(st$it_q, pull$taken_q)
                 st$it_e <- c(st$it_e, pull$taken_e)
               }
-              .ledger_add(st, "reorder", today_n, today_n + st$lt, today_n + st$lt,
+              .ledger_add(st, "reorder", today_n, today_n + st$lt, .arrival(st, today_n + st$lt),
                           want, reorder_qty,
                           if (depot_short > 0) sprintf("depot short by %s", format(depot_short)) else "")
             }
@@ -519,14 +568,16 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
 # --------------------------------------------------------------------------- #
 .ledger_new <- function()
   list(src = character(0), ship = numeric(0), parr = numeric(0), arr = numeric(0),
-       planned = numeric(0), qty = numeric(0), note = character(0))
+       planned = numeric(0), qty = numeric(0), note = character(0),
+       overdue = logical(0))
 
-.ledger_add <- function(st, src, ship, parr, arr, planned, qty, note = "") {
+.ledger_add <- function(st, src, ship, parr, arr, planned, qty, note = "",
+                        overdue = FALSE) {
   lg <- st$lg
   lg$src <- c(lg$src, src); lg$ship <- c(lg$ship, ship)
   lg$parr <- c(lg$parr, parr); lg$arr <- c(lg$arr, arr)
   lg$planned <- c(lg$planned, planned); lg$qty <- c(lg$qty, qty)
-  lg$note <- c(lg$note, note)
+  lg$note <- c(lg$note, note); lg$overdue <- c(lg$overdue, overdue)
   st$lg <- lg
   invisible(NULL)
 }
@@ -537,8 +588,116 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   data.frame(Protocol = proto, Site = site, DU = du, Source = lg$src,
              Ship_Date = d(lg$ship), Planned_Arrival = d(lg$parr), Arrival = d(lg$arr),
              Delay_Days = lg$arr - lg$parr, Planned_Qty = lg$planned, Qty = lg$qty,
-             Note = lg$note, stringsAsFactors = FALSE)
+             Overdue = lg$overdue, Note = lg$note, stringsAsFactors = FALSE)
 }
+
+# --------------------------------------------------------------------------- #
+# In transit, lanes and disruptions
+#
+# In global clinical supply the stock on the road, and how long each lane takes
+# to deliver it, are what a crisis or a slow geography changes first. These
+# three inputs put them in front of the reorder rule.
+# --------------------------------------------------------------------------- #
+.read_table <- function(x, what) {
+  if (is.null(x)) return(NULL)
+  if (is.character(x)) {
+    if (!file.exists(x)) return(NULL)
+    x <- utils::read.csv(x, stringsAsFactors = FALSE, check.names = FALSE)
+  }
+  x <- normalize_df(x)
+  if (nrow(x) == 0) NULL else x
+}
+
+# Shipments on the road at the as-of date. Returns Protocol, Location (a site
+# key, or a bare center resolved later), DU, Qty, ETA, Ship_Date, Expiry, Lot.
+.map_in_transit <- function(x) {
+  df <- .read_table(x, "In-transit input")
+  if (is.null(df)) return(NULL)
+  loc  <- as.character(.first_present(df, c("Site", "center_number", "Center", "center", "site")))
+  ctry <- .first_present(df, c("Country", "country", "country_name"))
+  out <- data.frame(
+    Protocol  = as.character(.first_present(df, c("Protocol", "protocol", "protocol_id"))),
+    Location  = ifelse(grepl(SITE_SEP, loc, fixed = TRUE), loc, site_key(ctry, loc)),
+    DU        = as.character(.first_present(df, c("DU", "du_description", "DU_Description"))),
+    Qty       = suppressWarnings(as.numeric(.first_present(df,
+                  c("Qty", "qty", "quantity", "shipment_qty", "in_transit_count")))),
+    ETA       = as_date_flex(.first_present(df, c("ETA", "eta", "expected_arrival",
+                                                  "Expected_Arrival", "arrival_date"))),
+    Ship_Date = as_date_flex(.first_present(df, c("Ship_Date", "ship_date", "shipped_date"))),
+    Expiry    = as_date_flex(.first_present(df, c("Expiry", "expiry_date", "retest_date",
+                                                  "retest_date_inv", "expiration_date"))),
+    Lot       = as.character(.first_present(df, c("Lot", "lot_id", "lot_id_inv"))),
+    stringsAsFactors = FALSE)
+  bad <- is.na(out$Protocol) | is.na(out$Location) | out$Location == "" |
+         is.na(out$DU) | is.na(out$Qty) | is.na(out$ETA)
+  if (any(bad))
+    stop(sprintf(paste0("In-transit input: %d row(s) lack a protocol, site, DU, ",
+                        "quantity or expected arrival (ETA): rows %s."),
+                 sum(bad), paste(head(which(bad), 10), collapse = ", ")), call. = FALSE)
+  out[out$Qty > 0, , drop = FALSE]
+}
+
+.read_lanes <- function(x) {
+  df <- .read_table(x, "Lanes")
+  if (is.null(df)) return(NULL)
+  require_cols(df, c("Country", "Lead_Time_Days"), "Lanes")
+  if (!"Protocol" %in% names(df)) df$Protocol <- NA_character_
+  df$Protocol[!is.na(df$Protocol) & df$Protocol == ""] <- NA
+  df$Lead_Time_Days <- suppressWarnings(as.numeric(df$Lead_Time_Days))
+  if (any(is.na(df$Lead_Time_Days) | df$Lead_Time_Days < 0))
+    stop("Lanes: Lead_Time_Days must be a whole number of days, 0 or more.", call. = FALSE)
+  df$Lead_Time_Days <- round(df$Lead_Time_Days)
+  df
+}
+
+# A study-specific lane beats a country lane, which beats the global default.
+.site_lead_time <- function(lanes, proto, site, default) {
+  if (is.null(lanes)) return(default)
+  ctry <- site_country(site)
+  if (is.na(ctry)) return(default)
+  hit <- lanes$Lead_Time_Days[lanes$Country == ctry & !is.na(lanes$Protocol) &
+                                lanes$Protocol == proto]
+  if (!length(hit)) hit <- lanes$Lead_Time_Days[lanes$Country == ctry & is.na(lanes$Protocol)]
+  if (length(hit)) hit[1] else default
+}
+
+.read_disruptions <- function(x) {
+  df <- .read_table(x, "Disruptions")
+  if (is.null(df)) return(NULL)
+  require_cols(df, c("Country", "Start", "End", "Delay_Days"), "Disruptions")
+  df$Start <- as_date_flex(df$Start); df$End <- as_date_flex(df$End)
+  df$Delay_Days <- round(suppressWarnings(as.numeric(df$Delay_Days)))
+  df$Known <- if ("Known" %in% names(df))
+    toupper(trimws(as.character(df$Known))) %in% c("TRUE", "T", "YES", "Y", "1")
+  else FALSE
+  bad <- is.na(df$Start) | is.na(df$End) | df$End < df$Start |
+         is.na(df$Delay_Days) | df$Delay_Days < 0
+  if (any(bad))
+    stop(sprintf(paste0("Disruptions: row(s) %s need a Start and End date (End on or ",
+                        "after Start) and Delay_Days of 0 or more."),
+                 paste(which(bad), collapse = ", ")), call. = FALSE)
+  df
+}
+
+.site_disruptions <- function(disr, site) {
+  if (is.null(disr)) return(NULL)
+  ctry <- site_country(site)
+  d <- disr[disr$Country == "*" | (!is.na(ctry) & disr$Country == ctry), , drop = FALSE]
+  if (nrow(d) == 0) return(NULL)
+  list(s = as.numeric(d$Start), e = as.numeric(d$End), delay = d$Delay_Days, known = d$Known)
+}
+
+# Days added to a shipment scheduled to land on day `parr`: every window that
+# covers that day adds its delay, so overlapping crises compound. A delay that
+# pushes the arrival into a later window does not trigger that window too.
+.delay_for <- function(dis, parr, known_only = FALSE) {
+  if (is.null(dis)) return(0)
+  hit <- dis$s <= parr & parr <= dis$e
+  if (known_only) hit <- hit & dis$known
+  sum(dis$delay[hit])
+}
+
+.arrival <- function(st, parr) if (is.null(st$dis)) parr else parr + .delay_for(st$dis, parr)
 
 params_num <- function(p, key) suppressWarnings(as.numeric(p[[key]]))
 
