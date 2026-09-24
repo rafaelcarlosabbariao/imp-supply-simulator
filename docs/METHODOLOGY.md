@@ -335,10 +335,25 @@ as one lot expiring after the horizon:
 | rung | 0.0050 | 0.0724 | 60 (10) | 10,605 |
 | oracle (ceiling) | 0.0004 | 0.0051 | 2 (2) | 11,556 |
 
+At the implementation the experiment freezes (`ce00c79`: stock expiring within
+the lead time left out of the reorder position, the depot as four lots expiring
+24–60 months after the as-of date), five replications:
+
+| Forecast | P(stockout), fixed dose | P(stockout), titrating | Stockout units (sd) | Reorders | Expired units (sd) |
+|---|---|---|---|---|---|
+| trailing | 0.0932 | 0.7268 | 2,333 (57) | 12,331 | 669,517 (12,413) |
+| rung | 0.0034 | 0.1151 | 143 (11) | 11,519 | 515,539 (7,467) |
+| oracle (ceiling) | 0.0006 | 0.0038 | 1 (1) | 12,349 | 408,556 (6,103) |
+
+Once lots can expire, the trailing forecast loses more: seed stock at sites that
+seldom dispense a DU expires, and a forecast with no recent demand for that DU
+does not replace it (EXPERIMENT.md §4). The rung forecast also expires 23% fewer
+units than the trailing forecast.
+
 P(stockout) is the share of a protocol's site × DUs with at least one stockout,
-averaged over protocols. The rung forecast closes 94% of the gap in stockout
-units between the trailing forecast and the oracle, with 1% fewer reorders than
-the trailing forecast. This is a comparison on every protocol, not the
+averaged over protocols. In the first table the rung forecast closes 94% of the
+gap in stockout units between the trailing forecast and the oracle, with 1%
+fewer reorders; in the second, 94% again, with 7% fewer. This is a comparison on every protocol, not the
 randomised experiment in `EXPERIMENT.md`; it is what motivates it.
 
 ### 2.5 Outputs

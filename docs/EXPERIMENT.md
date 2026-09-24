@@ -294,3 +294,30 @@ Every result row carries `rep_seed`, `assign_seed`, `arm`, `protocol`, `site`,
   2026-09-24: option (a) of `docs/remaining-work-plan-2026-09-24.md` §7). The
   safety-stock allocation question is not tested here; it could be a later
   experiment with both arms on whichever forecast wins this one.
+
+---
+
+## 13. Power, computed before the confirmatory run (2026-09-24)
+
+From the control-arm pilot at `ce00c79` (`scripts/power_pilot.R`, 20
+replications, 18 protocols) and `scripts/power_curve.R`:
+
+| | |
+|---|---|
+| Mean stockout proportion, control | 0.403 (fixed dose 0.092, titrating 0.714) |
+| Between-protocol SD | 0.381; 0.213 with titration status blocked |
+| Within-protocol SD per replication | 0.048 (0.002 over 500 replications) |
+| Power for the 5pp MDE at 18 protocols | 0.058 unblocked, 0.075 blocked |
+| Protocols needed for 80% power | 1,828 unblocked, 574 blocked |
+| Smallest effect detectable at 18 protocols, blocked | 30pp |
+
+**The §8 contingency is triggered.** Power at 18 protocols is far below 80% for
+the pre-specified 5pp effect. §8 commits to expanding the frame to the *n* that
+reaches 80%, which is about 574 protocols blocked. The chart is
+`docs/assets/power_curve.png`.
+
+**Decision pending (Rafael).** The confirmatory run does not start until one is
+recorded here. Before choosing, note that the unrandomised comparison on every
+protocol (METHODOLOGY §2.4b) has already been seen: at this implementation it
+put the trailing forecast at 0.41 and the rung forecast at 0.06, a gap of about
+35pp. An MDE restated after that is informed by it, and would be labelled so.

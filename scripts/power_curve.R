@@ -145,8 +145,8 @@ if (ok) {
   d <- grid %>% filter(n <= 120) %>%
     tidyr::pivot_longer(c(power_unblocked, power_blocked),
                         names_to = "design", values_to = "power") %>%
-    filter(delta %in% c(0.03, 0.05, 0.10), design == "power_blocked") %>%
-    mutate(delta = factor(sprintf("%.0fpp effect", delta * 100),
+    filter(round(delta, 3) %in% c(0.03, 0.05, 0.10), design == "power_blocked") %>%
+    mutate(delta = factor(sprintf("%.0fpp effect", round(delta * 100)),
                           levels = c("3pp effect", "5pp effect", "10pp effect")))
   p <- ggplot(d, aes(n, power, colour = delta)) +
     geom_hline(yintercept = TARGET, colour = RULE, linewidth = .5, linetype = "22") +
