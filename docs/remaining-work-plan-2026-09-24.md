@@ -1,7 +1,7 @@
 # Plan — the forecast, the app, the experiment, and the loose ends
 
 **Written:** 2026-09-24, after `f3d5aff`
-**Status:** proposed; nothing below is built.
+**Status:** built on 2026-09-24 from Rafael's decisions (§7); §8 records where the build departed from the plan.
 **Follows:** `docs/seeding-by-cohort-plan-2026-09-24.md`, whose Phases 1–6 are done.
 
 The first review of the day listed nine findings. Seeding by cohort, the site key
@@ -264,3 +264,61 @@ the last change to the repo before the pilot.
 4. **Where the confirmatory run executes** (D7): about 17 hours for two arms. Needed
    only after E2.
 5. **AT RISK rule** (D5): after the measurement in C1.
+
+---
+
+## 8. Where the build departed from the plan
+
+Decisions (Rafael, 2026-09-24): the experiment compares the rung forecast
+against the trailing one (7.1, option a); a patient on a titrating plan carries
+a status, and a stable patient can be demoted back to titrating by an
+unplanned visit, a missed dose or an adverse event, so the forecast should
+track that on top of visit counts (7.2); push once, at the end (7.3).
+
+- **F1. The trailing forecast reads history from before the as-of date.** Demand
+  was cut at the as-of date, so every site open at that date forecast zero on
+  day one. The window now reaches back over the days the site was already
+  dispensing, capped at 60.
+- **F1. Two transit checks pin the oracle.** Their dates were chosen against the
+  oracle's order timing (`tests/test_transit.R` §4–5); under the trailing
+  forecast they no longer exercise the disruption.
+- **F2. Status is the chain's full state.** D2.3 proposed two layers per rung.
+  The forecast instead uses the state `expected_demand()` already solves on,
+  (rung, ratchet, window position), so a titrating patient's visits left in the
+  window are known too. The visit stream records it per visit: `Dose_Status`,
+  `Titration_Visit`, `Ratchet`, `Demotions`, `Status_Change`.
+- **F2. Demotion at a visit is new.** `P_Revert` (default 0) demotes a stable
+  patient at a visit they attend, for an adverse event or an unplanned visit;
+  they titrate again from their current dose. A missed visit already demoted
+  them to the floor. The draw is shared with the missed-visit draw, so runs with
+  `P_Revert = 0` are identical to before (checked on the frame: 2,559,686 rows,
+  same rungs, dates and quantities).
+- **F2. Exit.** D2.1 proposed ending a patient's span one cadence after their
+  final visit. Each projection instead stops at the patient's last cycle, which
+  covers a patient cut off by a missed visit too.
+- **F2. Patients count from enrollment.** Following the visit-0 decision, the
+  enrollment records can be passed with the visits, and a patient is projected
+  from the day they are entered.
+- **F2. The rung projection carries the unplanned-visit uplift** that the
+  realised demand and the other two forecasts already see.
+- **F2. `project_inventory(occupancy =)` became `visits =`.** Nothing committed
+  called it.
+- **F3.** The frame, seeds, depot and policy moved to
+  `scripts/experiment_setup.R`, shared by the pilot and the comparison.
+- **A1–A3 landed as one commit.** The rung forecast is offered whether or not a
+  titration spec is loaded, since on a fixed-dose arm it is a headcount. The
+  engine's notes (dropped seeds, seeds that left before the as-of date) show
+  under the run button. The live browser click-through was not done: the Chrome
+  extension did not respond. `tests/test_app.R` drives the same path.
+- **E1. Blocks are halves.** 18 protocols do not split into even terciles
+  within titration status, so blocks are above / below the median demand.
+- **E1. Depot lots.** The depot is four lots expiring 24, 36, 48 and 60 months
+  after the as-of date, so expiry can register.
+- **E1. The engine learned about expiry.** Staggered depot lots at first sent
+  97% of site × DUs into stockout: the reorder rule counted a lot as cover until
+  the day it expired. Two rules were added before the freeze: stock expiring
+  before an order placed today could land is left out of the inventory
+  position, and the depot ships a lot only with `min_shelf_life_days` (30) left
+  on arrival. The sample's counts are unchanged.
+- **E1. A sensitivity run was added**, with the forecast's `P_Miss` misstated,
+  because the rung forecast is given the true titration probabilities.

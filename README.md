@@ -83,8 +83,8 @@ a path and genuinely needs one.
   bugs found along the way): [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md)
 - **Why titration and site seeding are modelled the way they are, and what it cost to make the engine fast**:
   [`docs/titration-and-runtime-2026-08-28.md`](docs/titration-and-runtime-2026-08-28.md)
-- **Pre-registration** for the safety-stock A/B this engine exists to support
-  (written before the run, results appended after):
+- **Pre-registration** for the forecast experiment this engine exists to
+  support, rung against trailing (written before the run, results appended after):
   [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md)
 
 ## Quickstart
@@ -190,9 +190,9 @@ center is matched to its only site, and the run stops if it has more than one.
 
 ```bash
 Rscript tests/test_titration.R   # 29 checks; exits non-zero on failure
-Rscript tests/test_seeding.R     # 40 checks
+Rscript tests/test_seeding.R     # 41 checks
 Rscript tests/test_transit.R     # 17 checks
-Rscript tests/test_forecast.R    # 28 checks
+Rscript tests/test_forecast.R    # 31 checks
 Rscript tests/test_app.R         # 15 checks
 Rscript tests/benchmark.R        # runtime baseline
 ```
