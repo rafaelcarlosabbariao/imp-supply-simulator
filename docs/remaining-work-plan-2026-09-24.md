@@ -322,3 +322,8 @@ track that on top of visit counts (7.2); push once, at the end (7.3).
   on arrival. The sample's counts are unchanged.
 - **E1. A sensitivity run was added**, with the forecast's `P_Miss` misstated,
   because the rung forecast is given the true titration probabilities.
+- **E2. The randomised design could not reach power.** The control pilot needed
+  574 protocols for the 5pp MDE. Rafael chose (2026-09-24) to run every protocol
+  under both arms instead; the pre-registration was rewritten a fourth time and
+  frozen at `9d0e8ce`, with frame expansion made a smoothed bootstrap that
+  records each synthetic protocol's donor.

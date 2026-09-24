@@ -1,33 +1,30 @@
 # Pre-registration — does a forecast that counts patients by dose beat a trailing average?
 
-**Written:** 2026-09-24 (third version; see *History* at the end)
+**Written:** 2026-09-24 (fourth version; see *History* at the end)
 **Status:** PRE-REGISTERED. Nothing below has been run as a confirmatory
 experiment. Results, when they exist, go in a *Results* section appended to
 this file; the text above it is not edited afterwards.
-**Implementation frozen at:** `ce00c7903f44aea9ac1cfdaf154d514f317b7bfc`
+**Implementation frozen at:** `9d0e8ce7f8dc58fc25e5cead09af815277f0e227`
 (2026-09-24)
 
 > **The rule.** A seed means something only for one implementation, because
 > any change to the engine can change the order in which random numbers are
-> drawn. If the engine or `scripts/experiment_setup.R` changes before the
-> confirmatory run, this document is void and is rewritten, not amended.
+> drawn. If the engine (`R/`), `scripts/experiment_setup.R`,
+> `scripts/build_frame.R` or the frame's inputs change before the confirmatory
+> run, this document is void and is rewritten, not amended.
 
 ---
 
 ## 1. What this does and does not claim
 
-**Claims:** an experiment-design result. Randomisation, blocking, a
-pre-specified estimator, a power calculation, and an account of the threats, on
-a question whose answer was measured once (n = 1 replication) and not tested.
+**Claims:** a paired simulation experiment with a pre-specified estimator, a
+power calculation, a rule for the number of protocols and replications, and an
+account of the threats.
 
 **Does not claim:** causal identification under confounding. The
-data-generating process is one we wrote, so there is no unobserved confounding
-to defeat and nothing about propensity matching or synthetic controls is
-demonstrated. A randomised experiment inside our own simulator is not an
-identification strategy.
-
-Because the true effect is known by construction, the estimator's **coverage
-can be checked against ground truth** (§9), which a real-data study cannot do.
+data-generating process is one we wrote. Both forecasts are run on every
+protocol against the same simulated demand, so the comparison needs no
+randomisation and demonstrates none.
 
 The companion item, the Supp acquisition-spend cutoff as an interrupted time
 series, is the one that addresses identification on real data.
@@ -37,7 +34,7 @@ series, is the one that addresses identification on real data.
 ## 2. Motivation
 
 The `(s, S)` reorder rule (`R/inventory.R`, METHODOLOGY §2.4) orders when the
-stock a site holds and has on order falls below
+usable stock a site holds and has on order falls below
 
 ```
 reorder_point = lead_demand + safety_stock_days × rate
@@ -55,11 +52,12 @@ site instead: each at their dose, their status (titrating or stable), the
 ratchet and their visit number, projected forward through the CSP's titration
 probabilities to their last cycle. That is information an IRT system holds.
 
-On one replication of the frame (2026-09-24, `scripts/compare_forecasts.R`),
-titrating protocols stocked out on 49% of their site × DUs under the trailing
-forecast and 7% under the rung forecast, with fewer reorders. The question is
-whether that holds across replications and across protocols drawn from this
-population, and what it costs in expired stock.
+On five replications of the 18-protocol frame at `ce00c79`
+(`scripts/compare_forecasts.R`, METHODOLOGY §2.4b), titrating protocols stocked
+out on 73% of their site × DUs under the trailing forecast and 12% under the
+rung forecast; fixed-dose protocols on 9% and 0.3%. Those numbers have been
+seen. The question is whether the difference holds across protocols drawn from
+this population, and what it costs in expired stock.
 
 ---
 
@@ -69,7 +67,7 @@ population, and what it costs in expired stock.
 site × DU units that experience at least one stockout, relative to ordering on
 the trailing forecast.
 
-**H0.** The two forecasts produce the same stockout rate.
+**H0.** The mean within-protocol difference is zero.
 
 Direction is pre-specified; the test is two-sided.
 
@@ -79,19 +77,18 @@ Direction is pre-specified; the test is two-sided.
 
 **Control: trailing.** `forecast = "trailing"`, `trailing_window_days = 60`.
 
-**Treatment: rung.** `forecast = "rung"`, given the visit stream with the
-enrollment records and the ladders built from the protocol's own dosing
-schedule and titration spec (`build_ladders(dosing, titr)`).
+**Treatment: rung.** `forecast = "rung"`, given the protocol's visit stream with
+its enrollment records and the ladders built from its own dosing schedule and
+titration spec.
 
 **One lever moves.** Everything else is identical between arms:
 `safety_stock_days = 30`, `target_days = 90`, `lead_time_days = 21`,
 `unplanned_visit_pct = 0.10`, `oversupply_pct = 0.10`,
-`enable_resupply = TRUE`, the horizon, the seeds and the depot. Both arms hold
-the same safety-stock *rule*; the forecasts differ in what the rule multiplies.
+`min_shelf_life_days = 30`, `enable_resupply = TRUE`, the horizon, the seeds and
+the depot.
 
-**The oracle** (`forecast = "oracle"`, perfect foresight) is run on every
-replication and reported as a ceiling. It is not an arm and is never compared
-in a test.
+**The oracle** (`forecast = "oracle"`) is run on the first 10 replications and
+reported as a ceiling. It is not an arm and enters no test.
 
 ### Held constant across arms
 
@@ -99,124 +96,133 @@ in a test.
   landing 21 days before the cohort's enrollment (visit 0), drawn from the depot
   and topped up against what the site holds (METHODOLOGY §2.1a). Sites start
   empty (`opening = "seeded"`) and the as-of date, 2022-04-01, precedes every
-  seed's ship date, so every seed ships inside the walk.
+  seed's ship date.
 - **The depot.** Per Protocol × DU, 3× the study's expected demand
-  (`expected_demand()` on the planned ladder), split into **four equal lots
-  expiring 24, 36, 48 and 60 months after the as-of date**. Before this version
-  the depot held one lot expiring a year after the horizon, so nothing could
-  expire and `Total_Expired` was 0 in every run. Staggered lots let expiry
-  respond to how much each forecast ships and when. The depot is never
-  restocked. Measured on one control replication before this freeze: with
-  the lots, 43% of site × DUs stock out against 26% with a single far lot,
-  most of the difference in the month the first lot expires. Seed stock at a
-  site that seldom dispenses a DU (the low-dose DU a restart pulls) expires, and
-  a forecast that sees no recent demand for that DU does not replace it. That
-  is a property of the forecast under test and stays in.
+  (`expected_demand()` on the planned ladder), split into four equal lots
+  expiring 24, 36, 48 and 60 months after the as-of date, never restocked.
+  With lots that can expire, seed stock at a site that seldom dispenses a DU
+  (the low-dose DU a restart pulls) expires, and a forecast that sees no recent
+  demand for that DU does not replace it. That is a property of the forecasts
+  under test and stays in.
 
 ---
 
-## 5. Unit of randomisation, and the interference problem
+## 5. Design: every protocol under both arms
 
-**Randomisation is at the protocol level.** Sites are the nested observation
-level.
+Each protocol is simulated once per replication and walked twice on that one
+realisation, once per arm (`run_protocol()` in `scripts/experiment_setup.R`).
+The protocol is its own control.
 
-`R/inventory.R` keeps **one depot pool per Protocol × DU, shared by every site
-in the protocol.** Randomising sites within a protocol would let a treated site
-draw the depot down and change what a control site can get, an interference
-(SUTVA) violation. Protocol-level assignment keeps each depot inside one arm,
-and it is the level at which a supply lead sets a forecasting method.
+**Why not randomise protocols to arms.** The previous version did, and its
+power rested on how much the *level* of stockouts varies between protocols
+(between-protocol SD 0.38). Running both arms on every protocol removes the
+level and leaves only how much the *effect* varies. In a simulation both arms
+can be run on the same demand at no cost to validity; a randomised allocation
+would discard half of each protocol's information.
 
-**The frame** (`datasets/frame/`, built by `scripts/build_frame.R`) is 18
-protocols, 9 titrating and 9 fixed dose, with 689 sites and 43,440 planned
-patients. 18 is a small *n* and it is the binding constraint on power (§8).
+**Interference.** Each walk runs one arm for all of a protocol's sites, and
+protocols share no depot, so no site's outcome depends on another protocol's
+arm.
+
+**Seeds.** A protocol's demand in replication `r` is seeded with
+`rep_seed × 1000 + i`, where `rep_seed = 1000 + r` and `i` is the protocol's row
+in `frame.csv`. Its demand is therefore the same whichever other protocols are
+in the frame and however the work is split across processes.
+
+**The frame.** The 18-protocol frame (`datasets/frame/`, built by
+`scripts/build_frame.R` from REINS: 9 titrating, 689 sites, 43,440 planned
+patients), expanded under §8 if the power calculation requires it. An expanded
+frame keeps the 18 real protocols and adds synthetic ones, each resampled from a
+real protocol and varied: site count and enrollment by a lognormal factor
+(SD 0.25 on the log scale), duration by one with SD 0.20, start 0–180 days
+later, and titration parameters (`P_Miss`, `Tolerance_Level`) assigned by the
+same rule as the real rows. `frame.csv` records each protocol's donor.
 
 ---
 
-## 6. Assignment mechanism
+## 6. Strata
 
-Blocked randomisation, 1:1 within block. Blocks are **titrating / fixed dose ×
-above / below the median expected daily demand** within that titration group,
-giving four blocks of four or five protocols. In a block of five, the fifth
-protocol's arm is drawn by a fair coin. Block membership is computed from the
-planned ladder and the enrollment plan before assignment.
+Protocols are stratified by **titration status**, which is fixed before any run
+(a protocol titrates if it is Oncology or Phase I). The comparison at `ce00c79`
+showed the effect near −0.61 on titrating protocols and −0.09 on fixed-dose
+ones; pooling them would put that gap into the error term.
 
-A **balance table** on pre-treatment covariates (expected daily demand, sites,
-planned patients, ladder depth, `P_Miss`, `Tolerance_Level`) is reported with
-the result whatever it shows.
-
-**Common random numbers.** Demand does not depend on the forecast. Demand is
-simulated **once per `rep_seed`** and each protocol is projected under its
-assigned arm against that realisation. Assignment uses a separate
-`assign_seed`, re-drawn each replication. Both seeds are logged on every row.
+A table of pre-treatment covariates by stratum (sites, planned patients, cycle
+length, `P_Miss`, `Tolerance_Level`, real or synthetic) is reported with the
+result.
 
 ---
 
 ## 7. Outcomes
 
 **Primary.** The proportion of a protocol's site × DU units with at least one
-stockout over the horizon (`Status == "STOCKOUT"`). Estimand: the **risk
-difference**, treatment minus control.
+stockout over the horizon (`Status == "STOCKOUT"`). Per protocol, the
+difference `d_p` = rung − trailing, averaged over replications.
 
 **Secondary**, pre-specified, none promotable to primary:
 
-1. Total stockout units (`Total_Stockout`), reported as a mean difference and
-   as a difference in the 90th percentile.
-2. Days to first stockout: Kaplan–Meier with a Cox model, censored at the
-   horizon (see §10.3).
-3. `Total_Expired`, the cost side. If the treatment reduces stockouts and
+1. Total stockout units (`Total_Stockout`), as a mean difference and as a
+   difference in the 90th percentile over protocols.
+2. `Total_Expired`, the cost side. If the treatment reduces stockouts and
    increases expiry, both are reported with equal prominence and the trade is
    stated in units.
-4. `Reorders` and `Total_Reordered`, the shipping cost.
-5. The effect within titrating protocols (§9).
+3. `Reorders`, the shipping cost.
+4. The effect within titrating protocols and within fixed-dose protocols (the
+   two strata).
 
 **Pre-specified sensitivity, not a test.** The rung forecast is given the true
-titration probabilities (§10.2). The treatment arm is re-run with the forecast's
-ladders misstated, `P_Miss` halved and `P_Miss` doubled (capped at 0.5), with
-demand unchanged. The primary risk difference is reported for each.
+titration probabilities (§10.2). On the first 10 replications the treatment arm
+is re-run with the forecast's ladders misstated, `P_Miss` halved and `P_Miss`
+doubled (capped at 0.5), with demand unchanged. The primary difference is
+reported for each.
 
 ---
 
 ## 8. Sample size and power
 
-`R = 500` replications, fixed in advance. **No interim analyses and no optional
-stopping.** The result is read once, after 500.
-
-Power is computed **before** the confirmatory run from a pilot of the **control
-arm** (`scripts/power_pilot.R`, 20 replications) on this implementation, with
-seeding on and under the titration data-generating process. The power curve
-(`scripts/power_curve.R`: protocols × effect size → power at α = 0.05) is
-committed with this file before any confirmatory run begins.
+**Pilot.** `scripts/power_pilot.R`, 20 replications of both arms on the
+18-protocol frame at the frozen implementation, before any confirmatory run.
+`scripts/power_curve.R` computes from it the within-stratum between-protocol
+variance of `d_p` and the within-protocol variance per replication.
 
 **Minimum detectable effect, pre-specified:** a **5 percentage point** absolute
-reduction in the site × DU stockout rate, at 80% power, α = 0.05, two-sided.
+reduction in the stockout proportion, at 80% power, α = 0.05, two-sided, for the
+stratified estimator of §9.
 
-**Pre-registered contingency.** If the power calculation shows under 80% power
-for that MDE at 18 protocols, the frame is expanded by generating further
-synthetic protocols from the REINS phase / therapeutic-area / site-count
-distribution (`scripts/build_frame.R`), up to the *n* that reaches 80%. The
-expanded frame's size is reported. The decision is recorded here so it cannot
-be made after an outcome is seen.
+**Replications.** `R` is the smallest of 50, 100, 200 and 500 at which the
+replication noise in a protocol's mean difference is under 5% of its variance,
+as computed by `power_curve.R` from the pilot. No interim analyses and no
+optional stopping: the result is read once, after `R`.
 
-**Compute.** One replication takes about 55 s under the trailing forecast,
-about 105 s under the rung forecast and about 60 s under the oracle
-(2026-09-24). 500 replications of all three is about 30 hours.
+**Protocols (contingency).** If power at 18 protocols is under 80%, the frame is
+expanded with `scripts/build_frame.R <reins> datasets/frame_expanded <n>` to the
+`n` that `power_curve.R` reports for 80% (its `EXPAND_TO` line), before the
+confirmatory run. The 5pp MDE is not restated. A reading from the comparison
+already seen, not a pilot, put that `n` near 92.
+
+**Compute, estimated.** 18 protocols take about 115 s per replication for both
+arms on 4 workers. A 92-protocol frame (about 174,000 planned patients) would
+take roughly 8–10 minutes per replication, so about 7–8 hours for R = 50.
 
 ---
 
 ## 9. Estimation
 
-**Primary estimator.** Paired difference by `rep_seed` (common random numbers),
-averaged across replications, with **cluster-robust standard errors at the
-protocol**. Reported alongside: the same estimate with block fixed effects.
-Both, always.
+**Primary estimator.** The mean of `d_p` over protocols, computed within each
+stratum and combined weighted by the stratum's share of protocols. Its standard
+error combines the within-stratum variances of `d_p`; the test is a t test with
+`n − 2` degrees of freedom. Reported alongside: the unstratified mean with its
+standard error.
 
-**Coverage validation.** A known effect of pre-specified size is injected, the
-experiment is repeated across many `assign_seed`s, and the proportion of 95%
-intervals covering the true effect is reported. **Coverage materially away from
-95% invalidates the estimator**, and that finding is reported.
+**Clustering by donor.** Synthetic protocols share a donor with a real one and
+may resemble it. The standard error is also reported clustered on `donor`
+(18 clusters). If the two standard errors differ by more than 25%, both are
+stated in the headline, not only the smaller.
 
-**Exactly one subgroup analysis:** the effect within titrating protocols. Any
-other subgroup that is run is labelled exploratory and excluded from any claim.
+**Interval check.** From the confirmatory results, 2,000 stratified subsamples
+of half the protocols are drawn; for each, the 95% interval is computed, and
+the share of intervals covering the full-frame estimate is reported. A share
+outside 92–98% means the interval is not reported as a 95% confidence interval.
 
 ---
 
@@ -225,39 +231,38 @@ other subgroup that is run is labelled exploratory and excluded from any claim.
 1. **It is a simulation.** The result says one forecast is better under this
    data-generating process, and the process is ours.
 2. **The treatment knows the process.** The rung forecast is given the same
-   titration probabilities the simulator draws from. A planner would have the
-   CSP's stated probabilities, which may be wrong. §7's sensitivity measures how
-   much of the effect survives a misstated `P_Miss`; it does not remove the
+   titration probabilities the simulator draws from. §7's sensitivity measures
+   how much of the effect survives a misstated `P_Miss`; it does not remove the
    concern.
-3. **Informative censoring** in the time-to-event secondary: a unit that never
-   stocks out is censored at the horizon, and censoring is caused by the
-   treatment working. KM/Cox estimates are descriptive companions to the primary
-   risk difference.
-4. **Residual interference.** Protocol-level assignment removes depot sharing
-   across arms. Depot capacity effects within a protocol are part of the
-   treatment.
-5. **Fixed nuisance parameters.** `Restart_Policy = uncapped`, `P_Revert = 0` on
+3. **The population is the generator.** Synthetic protocols are varied
+   resamples of 18 real ones. A claim about "protocols from this population" is
+   a claim about that generator, and the donor-clustered standard error (§9) is
+   the check on how much the synthetic rows add beyond their donors.
+4. **Fixed nuisance parameters.** `Restart_Policy = uncapped`, `P_Revert = 0` on
    every frame ladder, `visit_window = 3`, as-of 2022-04-01, horizon 2026-12-31,
    the seeding parameters (`Seed_Buffer = 0.10`, `Seed_Lead_Days = 21`), the
-   depot lots of §4, and the AT RISK rule, which does not enter any outcome.
-   `Tolerance_Level` and `P_Miss` vary across protocols and are the blocking and
-   sensitivity dimensions.
-6. **Small protocol-level n**, with the contingency in §8.
-7. **The rung forecast cannot see patients who have not enrolled.** Both arms
+   depot lots of §4, and every site in the USA on one lane. `Tolerance_Level` and
+   `P_Miss` vary across protocols.
+5. **The rung forecast cannot see patients who have not enrolled.** Both arms
    rely on seeding for a cohort's start, so this is held constant, and it bounds
    what the treatment can do at a cohort's first visits.
+6. **The effect was seen before this design was chosen.** The unrandomised
+   comparison (§2) was run before this version was written, and the move to a
+   paired design was made after seeing that the randomised one could not reach
+   power. The MDE, the estimator and the expansion rule are fixed here and are
+   not tuned to the seen effect.
 
 ---
 
 ## 11. What would falsify H1
 
-- A risk difference indistinguishable from zero at 500 replications with
-  adequate power.
+- A stratified mean difference indistinguishable from zero with adequate power.
 - Stockouts fall and expired units rise by more than the stockout units avoided:
   the treatment moves the problem. Under the pre-specified reading this is a
   negative result.
-- Coverage away from 95% in §9: no effect estimate from the estimator is
-  reportable.
+- A donor-clustered standard error large enough to make the effect
+  indistinguishable from zero: the effect does not generalise past the 18 real
+  protocols' designs.
 
 All three outcomes get written up.
 
@@ -270,54 +275,30 @@ Rscript tests/test_titration.R    # must all pass before any run
 Rscript tests/test_seeding.R
 Rscript tests/test_transit.R
 Rscript tests/test_forecast.R
-Rscript scripts/power_pilot.R 20   # control-arm pilot -> output/experiment/pilot.csv
-Rscript scripts/power_curve.R      # power from the pilot
-Rscript scripts/compare_forecasts.R 5   # the three forecasts, not randomised
+WORKERS=4 Rscript scripts/power_pilot.R 20   # both arms -> output/experiment/pilot.csv
+Rscript scripts/power_curve.R                # power, R, and the frame size
+Rscript scripts/build_frame.R ~/reins/app/data datasets/frame_expanded <n>   # if §8 requires
 # confirmatory run: script added with the results commit, not before
 ```
 
-Every result row carries `rep_seed`, `assign_seed`, `arm`, `protocol`, `site`,
-`du`, and the engine commit hash.
+Every result row carries `rep_seed`, `protocol`, `donor`, `forecast`, and the
+engine commit hash.
 
 ---
 
 ## History
 
 - **2026-08-28, first freeze** at `f4c3333`. Void when site seeding landed.
-- **2026-08-28, second freeze** at `e737631`. Treatment: a titration-aware
-  allocation of a fixed safety-stock budget; control: a uniform 30 days. Void
-  on 2026-09-24 for two reasons: the control arm ordered on the oracle forecast,
-  and the engine changed (sites keyed by country, a seed per cohort drawn from
-  the depot, stock in transit, lanes and disruptions). Its text is in the git
-  history of this file.
-- **2026-09-24, this version.** The arms became the forecast (Rafael's decision,
-  2026-09-24: option (a) of `docs/remaining-work-plan-2026-09-24.md` §7). The
-  safety-stock allocation question is not tested here; it could be a later
-  experiment with both arms on whichever forecast wins this one.
-
----
-
-## 13. Power, computed before the confirmatory run (2026-09-24)
-
-From the control-arm pilot at `ce00c79` (`scripts/power_pilot.R`, 20
-replications, 18 protocols) and `scripts/power_curve.R`:
-
-| | |
-|---|---|
-| Mean stockout proportion, control | 0.403 (fixed dose 0.092, titrating 0.714) |
-| Between-protocol SD | 0.381; 0.213 with titration status blocked |
-| Within-protocol SD per replication | 0.048 (0.002 over 500 replications) |
-| Power for the 5pp MDE at 18 protocols | 0.058 unblocked, 0.075 blocked |
-| Protocols needed for 80% power | 1,828 unblocked, 574 blocked |
-| Smallest effect detectable at 18 protocols, blocked | 30pp |
-
-**The §8 contingency is triggered.** Power at 18 protocols is far below 80% for
-the pre-specified 5pp effect. §8 commits to expanding the frame to the *n* that
-reaches 80%, which is about 574 protocols blocked. The chart is
-`docs/assets/power_curve.png`.
-
-**Decision pending (Rafael).** The confirmatory run does not start until one is
-recorded here. Before choosing, note that the unrandomised comparison on every
-protocol (METHODOLOGY §2.4b) has already been seen: at this implementation it
-put the trailing forecast at 0.41 and the rung forecast at 0.06, a gap of about
-35pp. An MDE restated after that is informed by it, and would be labelled so.
+- **2026-08-28, second freeze** at `e737631`. A titration-aware allocation of a
+  fixed safety-stock budget against a uniform 30 days. Void on 2026-09-24: the
+  control arm ordered on the oracle forecast, and the engine changed.
+- **2026-09-24, third freeze** at `ce00c79`. Rung against trailing, protocols
+  randomised to arms in four blocks. Its power calculation (20-replication
+  control pilot): between-protocol SD of the stockout proportion 0.38 (0.21
+  within titration status), power 0.075 for the 5pp MDE at 18 protocols, 574
+  protocols needed. The pre-registered contingency, expanding to 574 protocols
+  at 500 replications, was beyond the available compute.
+- **2026-09-24, this version.** Rafael chose, the same day, to run every
+  protocol under both arms instead of randomising. The harness changed to run
+  protocols one at a time (`9d0e8ce`), so this version is frozen there. The
+  earlier texts are in the git history of this file.
