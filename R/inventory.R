@@ -133,15 +133,22 @@ suppressPackageStartupMessages({
 # depot_inv_df: current on-hand at depots   (flexible columns; optional)
 # params      : list of policy assumptions (see defaults below)
 #
+# initial_receipts: seed shipments from seed_sites()
+# opening     : "snapshot" or "seeded" (see below); NULL picks "snapshot" when
+#               a site inventory is given and "seeded" when sites start empty
+#
 # Returns a list:
-#   $daily    : long projection, one row per Protocol x Site x DU x Date
-#   $summary  : one row per Protocol x Site x DU (KPIs incl. first stockout)
-#   $params   : the resolved parameters used
+#   $daily     : long projection, one row per Protocol x Site x DU x Date
+#   $summary   : one row per Protocol x Site x DU (KPIs incl. first stockout)
+#   $shipments : one row per shipment to a site -- seeds (including any dropped
+#                or topped up to zero, with the reason) and reorders
+#   $opening   : the opening mode used
+#   $params    : the resolved parameters used
 # --------------------------------------------------------------------------- #
 project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
                               params = list(), initial_receipts = NULL,
                               forecast = "oracle", occupancy = NULL,
-                              ladders = NULL) {
+                              ladders = NULL, opening = NULL) {
   p <- modifyList(list(
     safety_stock_days   = 30,   # buffer, in days of average demand
     target_days         = 90,   # order-up-to level, in days of average demand
@@ -176,10 +183,11 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   site_inv  <- .map_inventory(site_inv_df, "SITE", key_sites = TRUE)
   depot_inv <- .map_inventory(depot_inv_df, "DEPOT")
 
-  # Initial site stocking. Sites are activated and shipped BEFORE their first
-  # patient visit (see R/seeding.R); those shipments enter the same in-transit
-  # queue a reorder uses, so nothing about the daily walk has to change.
-  # Columns: Protocol, Site, DU, Arrive_Date, Qty, Expiry.
+  # Initial site stocking: one shipment per cohort (R/seeding.R), due to land
+  # before the cohort's visit 0. Each is a scheduled SHIPMENT: on its ship date
+  # (arrival less the lead time) it is drawn from the depot, topped up against
+  # what the site already holds, and joins the in-transit queue a reorder uses.
+  # Columns: Protocol, Site, DU, Arrive_Date, Qty [, Planned_Qty, Cohort, Expiry].
   init_rx <- NULL
   if (!is.null(initial_receipts) && nrow(initial_receipts) > 0) {
     init_rx <- normalize_df(as.data.frame(initial_receipts,
@@ -189,9 +197,23 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
     init_rx$Arrive_Date <- as_date_flex(init_rx$Arrive_Date)
     init_rx$Expiry <- if ("Expiry" %in% names(init_rx))
       as_date_flex(init_rx$Expiry) else as.Date(NA)
-    init_rx <- init_rx[!is.na(init_rx$Qty) & init_rx$Qty > 0, , drop = FALSE]
+    if (!"Planned_Qty" %in% names(init_rx)) init_rx$Planned_Qty <- init_rx$Qty
+    init_rx <- init_rx[!is.na(init_rx$Planned_Qty) & init_rx$Planned_Qty > 0, , drop = FALSE]
     if (nrow(init_rx) == 0) init_rx <- NULL
   }
+
+  # `opening` says what the position at the as-of date is made of.
+  #   "snapshot": the site inventory file is the stock on hand at the as-of
+  #               date. A seed shipped before it is dropped: one that landed is
+  #               in the snapshot, net of what was dispensed, and one still on
+  #               the road belongs in the in-transit input.
+  #   "seeded"  : sites start empty and the seeds build them. A seed that
+  #               landed before the as-of date is folded into on-hand; one on
+  #               the road at the as-of date lands on its date. Neither is drawn
+  #               from the depot, whose stock is counted as of the as-of date.
+  # Folding a seed in with no snapshot counted it twice when both were given.
+  opening <- if (is.null(opening)) (if (nrow(site_inv) > 0) "snapshot" else "seeded")
+             else match.arg(opening, c("snapshot", "seeded"))
 
   # Sites known from the plan: every site with demand or a seed shipment.
   known_sites <- unique(rbind(
@@ -213,7 +235,9 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   day_num <- as.numeric(days)                     # numeric compares in the loop
   day_index <- setNames(seq_len(nd), as.character(days))
 
-  results <- list()
+  results <- list(); shipments <- list()
+  start_n <- as.numeric(start_date)
+  n_seed_dropped <- 0L; early_ship <- Inf
 
   combos <- demand %>% distinct(Protocol, DU)
   # include DUs that have stock but (as yet) no demand, so we still track them
@@ -236,6 +260,9 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
     # shared depot pool for this protocol x DU (vectors; expiry as day-number)
     dp <- depot_inv %>% filter(Protocol == proto, DU == du)
     depot_pool <- list(q = dp$Qty, e = as.numeric(dp$Expiry))
+    # With no depot stock listed for this protocol x DU at all, a seed is
+    # supplied from outside the model and keeps the expiry seed_sites() gave it.
+    has_depot <- nrow(dp) > 0
 
     lt <- p$lead_time_days; tg <- p$target_days
 
@@ -258,22 +285,32 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
       e$pool   <- list(q = p0$Qty, e = as.numeric(p0$Expiry))
       e$it_arrive <- numeric(0); e$it_q <- numeric(0); e$it_e <- numeric(0)
 
-      # Seed shipments join the in-transit queue. One that was due to land
-      # BEFORE the planning as-of date has already arrived, so it is folded
-      # into on-hand rather than silently dropped by a day loop that starts
-      # after it.
+      e$lt <- lt
+      e$lg <- .ledger_new()
+      e$sd_day <- numeric(0); e$sd_arr <- numeric(0)
+      e$sd_plan <- numeric(0); e$sd_exp <- numeric(0)
       if (!is.null(ir_pd)) {
         r0 <- ir_pd[ir_pd$Site == s, , drop = FALSE]
-        if (nrow(r0)) {
-          arr <- as.numeric(r0$Arrive_Date)
-          already <- arr < as.numeric(start_date)
-          if (any(already))
-            e$pool <- list(q = c(e$pool$q, r0$Qty[already]),
-                           e = c(e$pool$e, as.numeric(r0$Expiry)[already]))
-          if (any(!already)) {
-            e$it_arrive <- c(e$it_arrive, arr[!already])
-            e$it_q      <- c(e$it_q,      r0$Qty[!already])
-            e$it_e      <- c(e$it_e,      as.numeric(r0$Expiry)[!already])
+        for (k in seq_len(nrow(r0))) {
+          arr  <- as.numeric(r0$Arrive_Date[k]); ship <- arr - e$lt
+          qty  <- r0$Planned_Qty[k];            ex   <- as.numeric(r0$Expiry[k])
+          if (ship >= start_n) {                  # ships during the walk
+            e$sd_day  <- c(e$sd_day, ship); e$sd_arr <- c(e$sd_arr, arr)
+            e$sd_plan <- c(e$sd_plan, qty); e$sd_exp <- c(e$sd_exp, ex)
+          } else if (opening == "snapshot") {
+            .ledger_add(e, "seed", ship, arr, NA, qty, 0,
+                        "dropped: shipped before the as-of date; the site snapshot and the in-transit input hold it")
+            n_seed_dropped <- n_seed_dropped + 1L
+          } else if (arr < start_n) {
+            e$pool <- list(q = c(e$pool$q, qty), e = c(e$pool$e, ex))
+            .ledger_add(e, "seed", ship, arr, arr, qty, qty,
+                        "landed before the as-of date: opening on-hand")
+            early_ship <- min(early_ship, ship)
+          } else {
+            e$it_arrive <- c(e$it_arrive, arr); e$it_q <- c(e$it_q, qty)
+            e$it_e <- c(e$it_e, ex)
+            .ledger_add(e, "seed", ship, arr, arr, qty, qty, "on the road at the as-of date")
+            early_ship <- min(early_ship, ship)
           }
         }
       }
@@ -291,7 +328,7 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
       e$oh_start <- numeric(nd); e$recv <- numeric(nd); e$disp <- numeric(nd)
       e$exp <- numeric(nd); e$so <- numeric(nd); e$oh_end <- numeric(nd)
       e$on_order <- numeric(nd); e$reord <- numeric(nd); e$dshort <- numeric(nd)
-      e$dos <- numeric(nd)
+      e$dos <- numeric(nd); e$seed <- numeric(nd); e$sshort <- numeric(nd)
       site_state[[s]] <- e
     }
 
@@ -334,11 +371,43 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
         stockout   <- cons$shortfall
         on_hand_end <- .pool_qty(st$pool)
 
-        # 4. resupply decision -- forward-coverage (MRP-style) order-up-to.
+        # 4. seed shipments due today. A seed tops the site up to the cohort's
+        #    planned quantity: a later cohort at an open site usually holds
+        #    stock from resupply, and shipping a full seed on top overstocks it.
+        seed_today <- 0; seed_short <- 0
+        if (length(st$sd_day) && any(st$sd_day == today_n)) {
+          for (k in which(st$sd_day == today_n)) {
+            position <- on_hand_end + (if (length(st$it_q)) sum(st$it_q) else 0)
+            want <- max(0, ceiling(st$sd_plan[k] - position))
+            shipped <- 0; short <- 0
+            if (want > 0 && has_depot) {
+              pull <- .pool_consume(depot_pool, want)
+              depot_pool <- pull$pool
+              shipped <- pull$consumed; short <- pull$shortfall
+              m <- length(pull$taken_q)
+              if (m) {
+                st$it_arrive <- c(st$it_arrive, rep(today_n + st$lt, m))
+                st$it_q <- c(st$it_q, pull$taken_q); st$it_e <- c(st$it_e, pull$taken_e)
+              }
+            } else if (want > 0) {
+              shipped <- want
+              st$it_arrive <- c(st$it_arrive, today_n + st$lt)
+              st$it_q <- c(st$it_q, want); st$it_e <- c(st$it_e, st$sd_exp[k])
+            }
+            seed_today <- seed_today + shipped; seed_short <- seed_short + short
+            .ledger_add(st, "seed", today_n, st$sd_arr[k], today_n + st$lt,
+                        st$sd_plan[k], shipped,
+                        if (want == 0) "topped up to zero: the site already held the planned quantity"
+                        else if (short > 0) sprintf("depot short by %s", format(short))
+                        else if (want < st$sd_plan[k]) "topped up" else "")
+          }
+        }
+
+        # 5. resupply decision -- forward-coverage (MRP-style) order-up-to.
         #    Size everything off demand actually coming up, not a flat average,
         #    so orders track the enrolment ramp instead of lagging it.
         on_order <- if (length(st$it_q)) sum(st$it_q) else 0
-        reorder_qty <- 0; depot_short <- 0
+        reorder_qty <- 0; depot_short <- 0; want <- 0
         fc <- .forecast_window(forecast, st, ti, nd, lt, tg, p)
         if (is.null(fc)) fc <- .forecast_window("trailing", st, ti, nd, lt, tg, p)
         rate            <- fc$rate
@@ -359,10 +428,13 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
               if (reorder_qty > 0) {
                 # each shipped lot keeps its own real expiry (FEFO from depot)
                 m <- length(pull$taken_q)
-                st$it_arrive <- c(st$it_arrive, rep(today_n + lt, m))
+                st$it_arrive <- c(st$it_arrive, rep(today_n + st$lt, m))
                 st$it_q <- c(st$it_q, pull$taken_q)
                 st$it_e <- c(st$it_e, pull$taken_e)
               }
+              .ledger_add(st, "reorder", today_n, today_n + st$lt, today_n + st$lt,
+                          want, reorder_qty,
+                          if (depot_short > 0) sprintf("depot short by %s", format(depot_short)) else "")
             }
           }
         }
@@ -373,6 +445,7 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
         st$on_order[ti] <- on_order + reorder_qty; st$reord[ti] <- reorder_qty
         st$dshort[ti] <- depot_short
         st$dos[ti] <- if (rate > 0) on_hand_end / rate else Inf
+        st$seed[ti] <- seed_today; st$sshort[ti] <- seed_short
       }
     }
 
@@ -385,14 +458,29 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
         Dispensed = st$disp, Expired = st$exp,
         Stockout_Units = st$so, On_Hand_End = st$oh_end,
         On_Order = st$on_order, Reorder_Qty = st$reord,
+        Seed_Shipped = st$seed, Seed_Short = st$sshort,
         Depot_Shortfall = st$dshort, Days_Of_Supply = st$dos,
         stringsAsFactors = FALSE)
+      shipments[[paste(proto, du, s)]] <- .ledger_frame(st$lg, proto, s, du)
     }
   }
 
+  if (n_seed_dropped > 0L)
+    message(sprintf(paste0("%d seed shipment(s) left before the as-of date %s and were ",
+                           "dropped: in snapshot mode the site inventory and the ",
+                           "in-transit input hold them."), n_seed_dropped, start_date))
+  if (is.finite(early_ship))
+    warning(sprintf(paste0("Seeds shipped as early as %s, before the as-of date %s. They ",
+                           "are counted, but the demand before %s is not simulated. Set ",
+                           "the as-of date on or before %s to walk them in."),
+                    as.Date(early_ship, origin = "1970-01-01"), start_date, start_date,
+                    as.Date(early_ship, origin = "1970-01-01")), call. = FALSE)
+
   daily <- bind_rows(results)
+  shipments <- bind_rows(shipments)
   if (nrow(daily) == 0)
-    return(list(daily = daily, summary = daily, params = p))
+    return(list(daily = daily, summary = daily, shipments = shipments,
+                opening = opening, params = p))
 
   summary <- daily %>%
     group_by(Protocol, Site, DU) %>%
@@ -403,6 +491,7 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
       Total_Stockout   = round(sum(Stockout_Units), 1),
       Reorders         = sum(Reorder_Qty > 0),
       Total_Reordered  = round(sum(Reorder_Qty), 1),
+      Total_Seeded     = round(sum(Seed_Shipped), 1),
       Depot_Shortfalls = sum(Depot_Shortfall > 0),
       End_On_Hand      = round(last(On_Hand_End), 1),
       Min_Days_Supply  = round(suppressWarnings(min(Days_Of_Supply)), 1),
@@ -420,7 +509,35 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
     arrange(factor(Status, levels = c("STOCKOUT", "AT RISK", "OK")),
             First_Stockout, Min_Days_Supply)
 
-  list(daily = daily, summary = summary, params = p)
+  list(daily = daily, summary = summary, shipments = shipments,
+       opening = opening, params = p)
+}
+
+# --------------------------------------------------------------------------- #
+# The shipment ledger: every shipment to a site, kept per site as plain vectors
+# while the walk runs and assembled once at the end.
+# --------------------------------------------------------------------------- #
+.ledger_new <- function()
+  list(src = character(0), ship = numeric(0), parr = numeric(0), arr = numeric(0),
+       planned = numeric(0), qty = numeric(0), note = character(0))
+
+.ledger_add <- function(st, src, ship, parr, arr, planned, qty, note = "") {
+  lg <- st$lg
+  lg$src <- c(lg$src, src); lg$ship <- c(lg$ship, ship)
+  lg$parr <- c(lg$parr, parr); lg$arr <- c(lg$arr, arr)
+  lg$planned <- c(lg$planned, planned); lg$qty <- c(lg$qty, qty)
+  lg$note <- c(lg$note, note)
+  st$lg <- lg
+  invisible(NULL)
+}
+
+.ledger_frame <- function(lg, proto, site, du) {
+  if (!length(lg$src)) return(NULL)
+  d <- function(x) as.Date(x, origin = "1970-01-01")
+  data.frame(Protocol = proto, Site = site, DU = du, Source = lg$src,
+             Ship_Date = d(lg$ship), Planned_Arrival = d(lg$parr), Arrival = d(lg$arr),
+             Delay_Days = lg$arr - lg$parr, Planned_Qty = lg$planned, Qty = lg$qty,
+             Note = lg$note, stringsAsFactors = FALSE)
 }
 
 params_num <- function(p, key) suppressWarnings(as.numeric(p[[key]]))

@@ -239,5 +239,81 @@ cat("\n== 8. every cohort at a site gets its own seed ==\n")
        sum(seed_sites(plan[1, ], lad, list())$Planned_Qty))
 }
 
+cat("\n== 9. seeds ship from the depot, top up, and respect the as-of date ==\n")
+{
+  lad <- build_ladders(dosing6, tspec)
+  e   <- enr("P1", 6L)                      # visit 0 on 2024-06-01
+  set.seed(91)
+  d <- compute_demand(simulate_visits(simulate_enrollment(e, 1L), dosing6, visit_window = 0,
+         simulation_end_date = as.Date("2025-06-01"), titration = tspec))
+  rx <- seed_sites(e, lad, list(Seed_Patients = 6L))   # lands 2024-05-11, ships 2024-04-20
+  plan <- setNames(rx$Planned_Qty, rx$DU)
+  depot <- function(q, retest = "2027-03-31")
+    data.frame(protocol = "P1", depot_name = "D1", du_description = names(q),
+               depot_inventory_count = unname(q), retest_date_inv = retest,
+               stringsAsFactors = FALSE)
+  none <- data.frame(Protocol = character(0), Location = character(0), DU = character(0),
+                     Qty = numeric(0), Expiry = as.Date(character(0)))
+  run <- function(site_inv, dep, asof, opening = NULL, resupply = FALSE)
+    suppressWarnings(suppressMessages(project_inventory(d, site_inv, dep,
+      list(start_date = as.Date(asof), horizon_end = as.Date("2025-06-01"),
+           enable_resupply = resupply),
+      initial_receipts = rx, opening = opening)))
+
+  # 3. drawn from the depot, with the depot lot's own expiry
+  short <- run(none, depot(c("DU-BG" = 1000, "DU-LOW" = 5)), "2024-04-01")
+  sh <- short$shipments[short$shipments$Source == "seed", ]
+  ok("a seed ships from the depot on its ship date, one lead time before it lands",
+     all(sh$Ship_Date == as.Date("2024-04-20")) && all(sh$Arrival == as.Date("2024-05-11")))
+  ok("a short depot ships what it has and records the shortfall",
+     sh$Qty[sh$DU == "DU-LOW"] == 5 &&
+       sum(short$daily$Seed_Short[short$daily$DU == "DU-LOW"]) == plan[["DU-LOW"]] - 5)
+  ok("the depot lot's expiry travels with it",
+     { x <- run(none, depot(c("DU-BG" = 1000, "DU-LOW" = 1000), retest = "2024-05-20"), "2024-04-01")
+       sum(x$daily$Expired) == sum(plan) })
+
+  # 4. top-up
+  hold <- data.frame(protocol_id = "P1", center_number = "1001", country_name = "USA",
+                     du_description = c("DU-LOW", "DU-BG"),
+                     site_inventory_count = c(plan[["DU-LOW"]] + 50, floor(plan[["DU-BG"]] / 2)),
+                     retest_date_inv = "2026-01-01", stringsAsFactors = FALSE)
+  tu <- run(hold, depot(c("DU-BG" = 1000, "DU-LOW" = 1000)), "2024-04-01", opening = "seeded")
+  ts <- tu$shipments[tu$shipments$Source == "seed", ]
+  ok("a site already holding the planned quantity is shipped nothing",
+     ts$Qty[ts$DU == "DU-LOW"] == 0 && grepl("topped up to zero", ts$Note[ts$DU == "DU-LOW"]))
+  ok("a partly stocked site is shipped the difference",
+     ts$Qty[ts$DU == "DU-BG"] == plan[["DU-BG"]] - floor(plan[["DU-BG"]] / 2))
+
+  # 5. snapshot mode
+  snap <- data.frame(protocol_id = "P1", center_number = "1001", country_name = "USA",
+                     du_description = "DU-LOW", site_inventory_count = 17,
+                     retest_date_inv = "2026-01-01", stringsAsFactors = FALSE)
+  sn <- run(snap, depot(c("DU-BG" = 1000, "DU-LOW" = 1000)), "2024-07-01")
+  ok("with a snapshot, a seed shipped before the as-of date is dropped",
+     sn$opening == "snapshot" && all(grepl("^dropped", sn$shipments$Note[sn$shipments$Source == "seed"])))
+  ok("...and opening stock is the snapshot, counted once",
+     sum(sn$summary$Start_On_Hand[sn$summary$DU == "DU-LOW"]) == 17 &&
+       sum(sn$summary$Start_On_Hand[sn$summary$DU != "DU-LOW"]) == 0)
+
+  # 6. seeded mode, a seed on the road at the as-of date
+  road <- run(none, depot(c("DU-BG" = 3, "DU-LOW" = 3)), "2024-05-01")
+  rr <- road$daily[road$daily$Date == as.Date("2024-05-11"), ]
+  ok("a seed on the road at the as-of date lands on its date",
+     road$opening == "seeded" && sum(rr$Received) == sum(plan))
+  ok("...without drawing from the depot",
+     sum(road$daily$Seed_Shipped) == 0 && sum(road$daily$Seed_Short) == 0)
+
+  # 8. seeds are not reorders
+  rs <- run(none, depot(c("DU-BG" = 5000, "DU-LOW" = 5000, "DU-HIGH" = 5000)),
+            "2024-04-01", resupply = TRUE)
+  led <- rs$shipments
+  ok("reorder counts exclude seeds",
+     sum(rs$summary$Reorders) == sum(led$Source == "reorder" & led$Qty > 0) &&
+       sum(rs$summary$Total_Seeded) == sum(led$Qty[led$Source == "seed"]))
+  ok("every unit received is in the ledger",
+     abs(sum(rs$daily$Received) -
+         sum(led$Qty[!is.na(led$Arrival) & led$Arrival <= as.Date("2025-06-01")])) < 1e-6)
+}
+
 cat(sprintf("\n%d passed, %d failed\n", .pass, .fail))
 quit(status = if (.fail > 0L) 1L else 0L)
