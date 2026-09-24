@@ -85,7 +85,10 @@ a path and genuinely needs one.
   [`docs/titration-and-runtime-2026-08-28.md`](docs/titration-and-runtime-2026-08-28.md)
 - **Pre-registration** for the forecast experiment this engine exists to
   support, rung against trailing (written before the run, results appended after):
-  [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md)
+  [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md). The confirmatory run (116
+  protocols, 50 replications, 2026-09-24) put the rung forecast's stockout
+  proportion 0.308 below trailing's (95% interval −0.357 to −0.259; −0.395 to
+  −0.222 clustered on the 18 real protocols), with 33% fewer expired units.
 
 ## Quickstart
 

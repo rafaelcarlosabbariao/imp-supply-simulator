@@ -327,3 +327,7 @@ track that on top of visit counts (7.2); push once, at the end (7.3).
   under both arms instead; the pre-registration was rewritten a fourth time and
   frozen at `9d0e8ce`, with frame expansion made a smoothed bootstrap that
   records each synthetic protocol's donor.
+- **E3. The confirmatory run finished** on 2026-09-24 at R = 50 on 116
+  protocols, not the R = 500 this plan assumed, because the §8 rule picked 50.
+  Results are in `EXPERIMENT.md` under *Results*, with the run's files in
+  `results/confirmatory/`. The AT RISK rule is still undecided.

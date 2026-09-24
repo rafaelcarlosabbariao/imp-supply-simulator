@@ -1,0 +1,54 @@
+frame: 116 protocols, 4471 sites, 218,313 patients | seed: 8942 shipments, 1,929,628 units
+depot: 1140 lots, 81,468,476 units (3x expected demand), expiring 2024-04-01, 2025-04-01, 2026-04-01, 2027-04-01
+confirmatory: 116 protocols, R = 50, extra walks on reps 1-10, 6 workers, engine dce2be1
+  rep  1/50   14.2 min  trailing 0.3535  rung 0.0416
+  rep  2/50   13.6 min  trailing 0.3441  rung 0.0456
+  rep  3/50   13.7 min  trailing 0.3500  rung 0.0404
+  rep  4/50   13.1 min  trailing 0.3542  rung 0.0402
+  rep  5/50   13.0 min  trailing 0.3532  rung 0.0401
+  rep  6/50   13.0 min  trailing 0.3442  rung 0.0413
+  rep  7/50   13.0 min  trailing 0.3474  rung 0.0410
+  rep  8/50   13.1 min  trailing 0.3457  rung 0.0478
+  rep  9/50   13.0 min  trailing 0.3457  rung 0.0400
+  rep 10/50   12.9 min  trailing 0.3501  rung 0.0415
+  rep 11/50    8.0 min  trailing 0.3466  rung 0.0425
+  rep 12/50    8.0 min  trailing 0.3485  rung 0.0484
+  rep 13/50    8.1 min  trailing 0.3440  rung 0.0417
+  rep 14/50    8.0 min  trailing 0.3530  rung 0.0388
+  rep 15/50    8.1 min  trailing 0.3539  rung 0.0392
+  rep 16/50    7.9 min  trailing 0.3579  rung 0.0422
+  rep 17/50    7.9 min  trailing 0.3459  rung 0.0425
+  rep 18/50    7.9 min  trailing 0.3510  rung 0.0428
+  rep 19/50    7.9 min  trailing 0.3578  rung 0.0435
+  rep 20/50    7.9 min  trailing 0.3502  rung 0.0388
+  rep 21/50    7.9 min  trailing 0.3572  rung 0.0413
+  rep 22/50    7.9 min  trailing 0.3470  rung 0.0430
+  rep 23/50    8.0 min  trailing 0.3479  rung 0.0395
+  rep 24/50    7.9 min  trailing 0.3520  rung 0.0428
+  rep 25/50    7.9 min  trailing 0.3520  rung 0.0402
+  rep 26/50    7.9 min  trailing 0.3513  rung 0.0397
+  rep 27/50    7.9 min  trailing 0.3502  rung 0.0420
+  rep 28/50    7.9 min  trailing 0.3501  rung 0.0465
+  rep 29/50    7.9 min  trailing 0.3478  rung 0.0413
+  rep 30/50    8.0 min  trailing 0.3529  rung 0.0415
+  rep 31/50    8.0 min  trailing 0.3505  rung 0.0408
+  rep 32/50    7.9 min  trailing 0.3507  rung 0.0427
+  rep 33/50    7.9 min  trailing 0.3510  rung 0.0370
+  rep 34/50    7.9 min  trailing 0.3541  rung 0.0431
+  rep 35/50    7.9 min  trailing 0.3448  rung 0.0413
+  rep 36/50    7.9 min  trailing 0.3502  rung 0.0407
+  rep 37/50    7.9 min  trailing 0.3478  rung 0.0432
+  rep 38/50    7.9 min  trailing 0.3540  rung 0.0429
+  rep 39/50    7.9 min  trailing 0.3510  rung 0.0425
+  rep 40/50    7.9 min  trailing 0.3489  rung 0.0450
+  rep 41/50    7.9 min  trailing 0.3511  rung 0.0402
+  rep 42/50    7.9 min  trailing 0.3448  rung 0.0481
+  rep 43/50    8.0 min  trailing 0.3575  rung 0.0400
+  rep 44/50    7.9 min  trailing 0.3534  rung 0.0428
+  rep 45/50    8.4 min  trailing 0.3529  rung 0.0465
+  rep 46/50    8.0 min  trailing 0.3548  rung 0.0430
+  rep 47/50    7.9 min  trailing 0.3537  rung 0.0474
+  rep 48/50    7.9 min  trailing 0.3531  rung 0.0442
+  rep 49/50    7.9 min  trailing 0.3587  rung 0.0457
+  rep 50/50    7.9 min  trailing 0.3431  rung 0.0450
+done

@@ -1,0 +1,42 @@
+50 replications, 116 protocols, engine dce2be1
+
+== Primary: stockout proportion, rung - trailing (§9) ==
+  stratified estimate  -0.3082   95% CI [-0.3573, -0.2591]   t(114), p = <2e-16
+ titrating protocols  mean_d   sd_d
+     FALSE        63 -0.1545 0.3249
+      TRUE        53 -0.4910 0.1747
+  unstratified         -0.3082   SE 0.0292
+  SE 0.0248; clustered on donor (18 clusters) 0.0409; ratio 1.65  -> both stated in the headline (§9)
+  clustered 95% CI    [-0.3946, -0.2219]
+
+== Interval check: 2,000 stratified half-subsamples (§9) ==
+  share of intervals covering the full-frame estimate: 0.934
+
+== Secondary outcomes (§7) ==
+  Stockout_Units  mean difference per protocol -113.9 (SE 14.4)
+  Expired         mean difference per protocol -12014.7 (SE 4722.4)
+  Reorders        mean difference per protocol -33.1 (SE 4.4)
+  totals per replication:
+ forecast      so      ex      ro
+     rung   554.2 2793933 72141.7
+ trailing 13766.4 4187640 75981.7
+  90th percentile of protocol stockout units: trailing 381.2, rung 16.1
+
+== Oracle ceiling, replications with the extra walks (§4) ==
+ forecast titrates P_Stockout
+   oracle    FALSE     0.0000
+   oracle     TRUE     0.0029
+     rung    FALSE     0.0052
+     rung     TRUE     0.0857
+ trailing    FALSE     0.1598
+ trailing     TRUE     0.5735
+
+== Sensitivity: the rung forecast with P_Miss misstated (§7) ==
+  rung_pmiss_half    stratified estimate -0.3029 (SE 0.0250)
+  rung_pmiss_double  stratified estimate -0.2907 (SE 0.0251)
+
+== Covariates by stratum (§6) ==
+ titrating protocols synthetic sites patients cycle_len P_Miss Tolerance
+     FALSE        63        54    56     3356      26.8     NA        NA
+      TRUE        53        44    18      130      21.0  0.072      5.51
+analysis exit 0 at Thu Sep 24 11:24:11 EDT 2026

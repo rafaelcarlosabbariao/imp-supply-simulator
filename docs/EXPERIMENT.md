@@ -344,3 +344,104 @@ with R = 50. One timing replication (rep_seed 9999, outside the confirmatory
 seeds) took 8.8 minutes on 6 workers, so the run is about 7.5 hours for the two
 arms, plus the oracle ceiling and the sensitivity runs on 10 replications. The
 chart is `docs/assets/power_curve.png`.
+
+---
+
+## Results (2026-09-24)
+
+Everything above this heading was written before any confirmatory result
+existed. The run and the analysis are the committed scripts at `7803813`
+(`scripts/confirmatory_run.R`, `scripts/confirmatory_analysis.R`), on the engine
+at `dce2be1`. That commit changed only the analysis script's interval check
+(the correction in §9), so the engine is the one frozen at `9d0e8ce`. The run
+began at 03:52 and wrote its 50th replication at 11:23; replications 1–10, which
+carry the oracle and sensitivity walks, took about 13 minutes each, the rest
+7.9. No replication failed, and no seed shipment fell short of the depot
+(`Seed_Short` = 0 throughout). `scripts/after_confirmatory.sh` ran the analysis at
+11:24. Its output, unedited, and the 50 per-replication files are in
+`results/confirmatory/`.
+
+**The seeds overlap the pilot's.** For the 18 real protocols, replications 1–20
+use the same seeds as the paired pilot of §13, so those 360 protocol-replications
+repeat pilot draws. The synthetic protocols' seeds are new. This was not noticed
+when §5 was written.
+
+### Primary outcome (§7, §9)
+
+The stockout proportion, rung − trailing, 116 protocols, R = 50:
+
+| | Estimate | 95% interval |
+|---|---|---|
+| Stratified, t(114) | **−0.308** | [−0.357, −0.259], p < 2e-16 |
+| Stratified, clustered on donor (18 clusters) | **−0.308** | [−0.395, −0.222] |
+| Unstratified | −0.308 | SE 0.029 |
+
+The clustered standard error (0.041) is 1.65 times the stratified one (0.025),
+beyond §9's 25%, so both intervals are the headline. The half-subsample interval
+check covered the full-frame estimate in 0.934 of 2,000 draws, inside 92–98%, so
+the interval is reported as a 95% interval.
+
+H0 is rejected. None of §11's three falsifying outcomes occurred: the estimate
+is 6 times the 5pp MDE, expired units fell, and the clustered
+interval excludes zero.
+
+### By stratum (§7.4)
+
+| | Protocols | Trailing | Rung | Oracle (reps 1–10) | Mean d_p (SD) |
+|---|---|---|---|---|---|
+| Titrating | 53 | 0.574 | 0.086 | 0.003 | −0.491 (0.175) |
+| Fixed dose | 63 | 0.160 | 0.005 | 0.000 | −0.155 (0.325) |
+
+The trailing, rung and oracle columns are the stockout proportion on replications
+1–10, where all three were walked. On titrating protocols the rung forecast
+closes 85% of the distance between trailing and the oracle; on fixed-dose
+protocols, 97%. The pilot (§13) put the stratum means at −0.588 and −0.092; the
+expanded frame's are closer together.
+
+### Secondary outcomes (§7)
+
+Summed over the frame, mean per replication:
+
+| | Trailing | Rung | Change |
+|---|---|---|---|
+| Stockout units | 13,766 | 554 | −96% |
+| Expired units | 4,187,640 | 2,793,933 | −33% |
+| Reorders | 75,982 | 72,142 | −5% |
+
+Per protocol, stratified: stockout units −113.9 (SE 14.4), expired −12,015
+(SE 4,722), reorders −33.1 (SE 4.4). The 90th percentile of a protocol's
+stockout units falls from 381.2 to 16.1. Nearly all the expired stock is in the
+fixed-dose stratum (4.01M of 4.19M under trailing), whose protocols are the
+large ones.
+
+### Sensitivity: `P_Miss` misstated (§7)
+
+On replications 1–10, the rung forecast given ladders with `P_Miss` halved gives
+a stratified estimate of −0.303 (SE 0.025), and with it doubled −0.291 (SE 0.025),
+against −0.308 with the true value.
+
+### Covariates by stratum (§6)
+
+| | Protocols | Synthetic | Sites (mean) | Patients (mean) | Cycle (days) | `P_Miss` | `Tolerance_Level` |
+|---|---|---|---|---|---|---|---|
+| Titrating | 53 | 44 | 18 | 130 | 21.0 | 0.072 | 5.51 |
+| Fixed dose | 63 | 54 | 56 | 3,356 | 26.8 | — | — |
+
+The strata differ in size as well as in titration: a fixed-dose protocol has on
+average three times the sites and 26 times the patients. The difference between
+the two strata's effects is therefore not attributable to titration alone, and this
+design cannot separate the two.
+
+### Descriptive, not pre-specified
+
+Of the 116 protocols, 102 have a lower stockout proportion under the rung
+forecast, 9 are equal, and 5 are higher by at most 0.4pp. All five are synthetic
+fixed-dose protocols.
+
+### Reading it against §10
+
+The result holds for this data-generating process (§10.1) and for a forecast that
+is given the simulator's own titration probabilities (§10.2). Misstating
+`P_Miss` by a factor of two in either direction moved the estimate by at most
+1.8pp. The donor-clustered interval is wider than the plain one by the ratio
+above, which is what §10.3 expected of 98 synthetic protocols resampled from 18.
