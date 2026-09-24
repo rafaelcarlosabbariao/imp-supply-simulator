@@ -6,7 +6,9 @@
 # frame, ladders, receipts, depot, CONTROL, empty_site_inv.
 # =========================================================================== #
 
-FRAME   <- file.path(root, "datasets/frame")
+# EXP_FRAME points at an expanded frame (EXPERIMENT.md §8); the default is the
+# 18-protocol frame built from REINS.
+FRAME   <- Sys.getenv("EXP_FRAME", file.path(root, "datasets/frame"))
 # Planning as-of must precede EVERY trial in the frame, or protocols are not
 # treated alike. A trial already mid-flight at the as-of date gets seeded for a
 # patient's FIRST visits (rung 1) while its actual demand is from patients who
@@ -88,3 +90,39 @@ empty_site_inv <- data.frame(Protocol = character(0), Location = character(0),
                              DU = character(0), Qty = numeric(0),
                              Expiry = as.Date(character(0)), stringsAsFactors = FALSE)
 
+
+# --------------------------------------------------------------------------- #
+# One protocol, one replication, both arms.
+#
+# Each protocol is simulated on its own, seeded from the replication and the
+# protocol's position in the frame, so its demand does not depend on which other
+# protocols are in the frame or how the work is split across processes. The
+# two arms are walked on that one realisation (common random numbers).
+# --------------------------------------------------------------------------- #
+ARMS <- c(control = "trailing", treatment = "rung")
+
+run_protocol <- function(proto, rep_seed, forecasts = ARMS) {
+  idx <- match(proto, frame$protocol_id)
+  set.seed(rep_seed * 1000L + idx)
+  pats <- simulate_enrollment(enroll[enroll$Protocol == proto, ], num_simulations = 1L)
+  v <- simulate_visits(pats, dosing[dosing$Protocol == proto, ], visit_window = 3,
+                       simulation_end_date = HORIZON,
+                       titration = titr[titr$Protocol == proto, , drop = FALSE])
+  d <- compute_demand(v)
+  lad <- ladders[vapply(ladders, function(l) l$protocol == proto, logical(1))]
+  out <- lapply(forecasts, function(m) {
+    pr <- suppressMessages(project_inventory(
+      d, empty_site_inv, depot[depot$Protocol == proto, ], CONTROL,
+      initial_receipts = receipts[receipts$Protocol == proto, ],
+      opening = "seeded", forecast = m,
+      visits = if (m == "rung") bind_rows(pats, v), ladders = if (m == "rung") lad))
+    s <- pr$summary
+    data.frame(rep_seed = rep_seed, Protocol = proto, forecast = m,
+               Units = nrow(s), Stockouts = sum(s$Status == "STOCKOUT"),
+               P_Stockout = mean(s$Status == "STOCKOUT"),
+               Stockout_Units = sum(s$Total_Stockout), Expired = sum(s$Total_Expired),
+               Reorders = sum(s$Reorders), Seed_Short = sum(pr$daily$Seed_Short),
+               stringsAsFactors = FALSE)
+  })
+  do.call(rbind, out)
+}

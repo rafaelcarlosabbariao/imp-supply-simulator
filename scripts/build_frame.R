@@ -84,18 +84,37 @@ cat(sprintf("REINS rows %d -> frame %d protocols (%d titrating, %d fixed)\n",
 # is not a thing, and independent margins would invent one. Titration status
 # follows the same deterministic rule as the real rows, and the seed is fixed so
 # an expanded frame is reproducible from its size alone.
+#
+# Each resampled row is then varied (a smoothed bootstrap): site count and
+# enrolment target by a lognormal factor with SD 0.25 on the log scale, the
+# study's duration by one with SD 0.20, and the start moved 0-180 days later
+# (never earlier, so every seed still ships after the pilot's as-of date). A
+# plain copy would differ from its donor only by random seed, and a frame of
+# copies would understate how much protocols vary. `donor` records the real
+# protocol each row came from, so standard errors can be clustered on it
+# (EXPERIMENT.md §9).
 if (!is.na(n_target) && n_target > nrow(frame)) {
   set.seed(20260828L)
   extra <- n_target - nrow(frame)
-  donors <- frame[sample(nrow(frame), extra, replace = TRUE), ]
+  pick  <- sample(nrow(frame), extra, replace = TRUE)
+  donors <- frame[pick, ]
+  donors$donor <- frame$protocol_id[pick]
+  jig <- function(x, sd) pmax(1L, as.integer(round(x * exp(rnorm(length(x), 0, sd)))))
+  donors$sites_count       <- jig(donors$sites_count, 0.25)
+  donors$enrollment_target <- pmax(donors$sites_count, jig(donors$enrollment_target, 0.25))
+  dur <- as.numeric(donors$end_date - donors$start_date) * exp(rnorm(extra, 0, 0.20))
+  donors$start_date <- donors$start_date + sample(0:180, extra, replace = TRUE)
+  donors$end_date   <- donors$start_date + round(dur)
   donors$protocol_id <- sprintf("SYN-%03d", seq_len(extra))
   donors$synthetic   <- TRUE
   frame$synthetic    <- FALSE
+  frame$donor        <- frame$protocol_id
   frame <- bind_rows(frame, donors)
   cat(sprintf("  EXPANDED to %d protocols (%d real + %d synthetic, seed 20260828)\n",
               nrow(frame), nrow(frame) - extra, extra))
 } else {
   frame$synthetic <- FALSE
+  frame$donor     <- frame$protocol_id
 }
 
 # --- Enrolment plan --------------------------------------------------------- #
@@ -168,7 +187,7 @@ write.csv(dosing, file.path(outdir, "dosing_input.csv"),     row.names = FALSE)
 write.csv(tit,    file.path(outdir, "titration_input.csv"),  row.names = FALSE)
 write.csv(frame %>% select(protocol_id, phase, therapeutic_area, status,
                            sites_count, enrollment_target, titrates, cycle_len,
-                           end_imputed, synthetic),
+                           end_imputed, synthetic, donor),
           file.path(outdir, "frame.csv"), row.names = FALSE)
 
 cat(sprintf("  %d enrolment rows | %d sites | %s patients\n",
