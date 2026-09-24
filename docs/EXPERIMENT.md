@@ -224,6 +224,14 @@ of half the protocols are drawn; for each, the 95% interval is computed, and
 the share of intervals covering the full-frame estimate is reported. A share
 outside 92–98% means the interval is not reported as a 95% confidence interval.
 
+> **Correction, 2026-09-24, before any confirmatory run.** As first written,
+> each subsample's interval was its plain 95% interval. A half drawn without
+> replacement from the frame sits closer to the full-frame estimate than a
+> sample from the population would, so that interval covers it about 99% of the
+> time whatever the estimator does, and the check could only fail. Found in a
+> two-replication test of the analysis script on the 18-protocol frame. The
+> subsample interval now carries the finite-population correction √(1 − ½).
+
 ---
 
 ## 10. Threats to validity
