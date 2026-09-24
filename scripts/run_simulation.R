@@ -155,6 +155,8 @@ proj <- project_inventory(
                 oversupply_pct = 0.10, start_date = as_of_date,
                 horizon_end = sim_end_date),
   initial_receipts = initial_receipts, forecast = forecast,
+  visits = if (forecast == "rung") bind_rows(enroll, visits),
+  ladders = if (forecast == "rung") build_ladders(dosing, titration),
   in_transit = in_transit, lanes = lanes, disruptions = disruptions)
 
 port <- portfolio_summary(proj)

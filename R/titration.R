@@ -56,12 +56,15 @@ TITRATION_DEFAULTS <- list(
   P_Stay           = 0.20,
   P_Down           = 0.10,
   P_Miss           = 0.00,   # per-visit probability of a missed visit
+  P_Revert         = 0.00,   # per attended visit at the stable dose: demoted
+                             # back to titrating (an adverse event, or an
+                             # unplanned visit that reopens the dose)
   Tolerance_Level  = NA,     # ratchet rung; NA => second-to-last rung
   Restart_Policy   = "uncapped"
 )
 
 TITRATION_COLS <- c("Protocol", "Arm", "Titration_Visits",
-                    "P_Up", "P_Stay", "P_Down", "P_Miss",
+                    "P_Up", "P_Stay", "P_Down", "P_Miss", "P_Revert",
                     "Tolerance_Level", "Restart_Policy")
 
 # --------------------------------------------------------------------------- #
@@ -102,6 +105,8 @@ validate_ladder <- function(lad) {
                    who, sum(ps)), call. = FALSE)
     if (is.na(lad$p_miss) || lad$p_miss < 0 || lad$p_miss >= 1)
       stop(sprintf("Ladder %s: P_Miss must be in [0, 1).", who), call. = FALSE)
+    if (is.na(lad$p_revert) || lad$p_revert < 0 || lad$p_revert >= 1)
+      stop(sprintf("Ladder %s: P_Revert must be in [0, 1).", who), call. = FALSE)
     if (lad$N < 1L)
       stop(sprintf("Ladder %s: Titration_Visits must be >= 1.", who), call. = FALSE)
     if (lad$L < 2L)
@@ -215,6 +220,7 @@ build_ladders <- function(dosing_df, titration_df = NULL) {
       p_stay   = as.numeric(pick("P_Stay", TITRATION_DEFAULTS$P_Stay)),
       p_down   = as.numeric(pick("P_Down", TITRATION_DEFAULTS$P_Down)),
       p_miss   = as.numeric(pick("P_Miss", TITRATION_DEFAULTS$P_Miss)),
+      p_revert = as.numeric(pick("P_Revert", TITRATION_DEFAULTS$P_Revert)),
       titrates = titrates
     )
     lad$cadence    <- max(rows$Cycle_Length, na.rm = TRUE)
@@ -238,15 +244,24 @@ build_ladders <- function(dosing_df, titration_df = NULL) {
 # ~0.68 s and ~0.034 s for 20,000 patients; see tests/benchmark.R.
 #
 # `st` is a list of integer vectors (dose, flr, win) plus the ratchet flag.
-# Returns the updated state and the rung dispensed this visit (0 = no dispense).
+# Returns the updated state, the rung dispensed this visit (0 = no dispense),
+# and which patients missed the visit or were demoted from the stable dose.
+#
+# Status. A patient is TITRATING while inside the titration window (win < N)
+# and STABLE once past it. A stable patient returns to titrating on a missed
+# visit (back to the floor, as before) or, with probability P_Revert at a visit
+# they attend, on an adverse event or an unplanned visit that reopens the dose:
+# they are dispensed their current dose and titrate again from it at the next
+# visit.
 # --------------------------------------------------------------------------- #
 .step_titration <- function(st, lad, active) {
   n <- length(st$dose)
   dispensed <- integer(n)
+  none <- logical(n)
 
   if (!lad$titrates) {
     dispensed[active] <- 1L
-    return(list(st = st, dispensed = dispensed))
+    return(list(st = st, dispensed = dispensed, miss = none, revert = none))
   }
 
   u    <- runif(n)
@@ -257,8 +272,16 @@ build_ladders <- function(dosing_df, titration_df = NULL) {
   }
 
   att <- active & !miss
-  if (!any(att)) return(list(st = st, dispensed = dispensed))
+  if (!any(att)) return(list(st = st, dispensed = dispensed, miss = miss, revert = none))
   dispensed[att] <- st$dose[att]
+
+  # Demotion reads the draw `u` the miss used: given attendance it is uniform
+  # on [p_miss, 1). No new random number is drawn, so with P_Revert = 0 every
+  # run is identical to one made before the parameter existed.
+  revert <- none
+  if (lad$p_revert > 0)
+    revert <- att & (st$win >= lad$N) &
+              (u < lad$p_miss + (1 - lad$p_miss) * lad$p_revert)
 
   tit <- att & (st$win < lad$N)
   if (any(tit)) {
@@ -281,7 +304,8 @@ build_ladders <- function(dosing_df, titration_df = NULL) {
     st$flr[idx]  <- as.integer(f)
     st$win[idx]  <- st$win[idx] + 1L
   }
-  list(st = st, dispensed = dispensed)
+  if (any(revert)) st$win[revert] <- 0L
+  list(st = st, dispensed = dispensed, miss = miss, revert = revert)
 }
 
 # --------------------------------------------------------------------------- #
@@ -300,6 +324,60 @@ build_ladders <- function(dosing_df, titration_df = NULL) {
                    nrow = n, ncol = Tmax)
   U <- upper.tri(matrix(0, Tmax, Tmax), diag = TRUE) * 1
   as.numeric(starts) + matrix(seq_len(Tmax) * cadence, n, Tmax, byrow = TRUE) + (J %*% U)
+}
+
+# --------------------------------------------------------------------------- #
+# .ladder_chain()
+# The ladder as a Markov chain on the enlarged state (dose d, ratchet r,
+# window w), w = 0..N with w = N the stable dose. One step is one scheduled
+# visit.
+#   P    : visit-to-visit transition, missed visits included
+#   A    : the same, given the patient attends the visit
+#   hold : P(attends | state), the weight on a dispense
+#   rung : rung dispensed in each state
+#   id   : (d, r, w) -> state index
+# A fixed-dose arm is a one-state chain. Used by expected_demand() and by the
+# rung forecast (R/forecast.R), so the two cannot disagree about the ladder.
+# --------------------------------------------------------------------------- #
+.ladder_chain <- function(lad) {
+  if (!lad$titrates)
+    return(list(S = 1L, P = matrix(1, 1, 1), A = matrix(1, 1, 1), hold = 1,
+                rung = 1L, id = function(d, r, w) 1L))
+  L <- lad$L; N <- lad$N; TOL <- lad$tol
+  S  <- L * 2L * (N + 1L)
+  id <- function(d, r, w) ((r) * (N + 1L) + w) * L + d
+
+  M    <- matrix(0, S, S)   # where a missed visit goes
+  A    <- matrix(0, S, S)   # where an attended visit goes
+  hold <- numeric(S)
+  rung <- integer(S)
+
+  for (r in 0:1) for (w in 0:N) for (d in seq_len(L)) {
+    s <- id(d, r, w)
+    f <- if (r == 1L) TOL else 1L
+    rung[s] <- d
+    hold[s] <- 1 - lad$p_miss
+
+    # missed visit -> floor, window resets
+    M[s, id(f, r, 0L)] <- M[s, id(f, r, 0L)] + 1
+
+    if (w >= N) {                       # stable: dose held, unless demoted
+      A[s, id(d, r, 0L)] <- A[s, id(d, r, 0L)] + lad$p_revert
+      A[s, id(d, r, w)]  <- A[s, id(d, r, w)]  + (1 - lad$p_revert)
+      next
+    }
+    for (br in list(list(lad$p_up, "up"), list(lad$p_stay, "stay"),
+                    list(lad$p_down, "down"))) {
+      pr <- br[[1]]; if (pr <= 0) next
+      tolerated <- br[[2]] %in% c("up", "stay")
+      r2 <- if (tolerated && d == TOL) 1L else r
+      f2 <- if (r2 == 1L) TOL else 1L
+      d2 <- switch(br[[2]], up = min(d + 1L, L), stay = d, down = max(d - 1L, f2))
+      A[s, id(d2, r2, w + 1L)] <- A[s, id(d2, r2, w + 1L)] + pr
+    }
+  }
+  list(S = S, P = lad$p_miss * M + (1 - lad$p_miss) * A, A = A,
+       hold = hold, rung = rung, id = id)
 }
 
 # --------------------------------------------------------------------------- #
@@ -344,40 +422,11 @@ expected_demand <- function(ladders, horizon_visits = NULL) {
       next
     }
 
-    L <- lad$L; N <- lad$N; TOL <- lad$tol
-    S  <- L * 2L * (N + 1L)
-    id <- function(d, r, w) ((r) * (N + 1L) + w) * L + d
-
-    P     <- matrix(0, S, S)   # transition
-    hold  <- numeric(S)        # P(attends | state) -- emission weight
-    rung  <- integer(S)        # rung dispensed in that state
-
-    for (r in 0:1) for (w in 0:N) for (d in seq_len(L)) {
-      s <- id(d, r, w)
-      f <- if (r == 1L) TOL else 1L
-      rung[s] <- d
-      hold[s] <- 1 - lad$p_miss
-
-      # missed visit -> floor, window resets
-      P[s, id(f, r, 0L)] <- P[s, id(f, r, 0L)] + lad$p_miss
-
-      if (w >= N) {                       # maintenance: dose is fixed
-        P[s, id(d, r, w)] <- P[s, id(d, r, w)] + (1 - lad$p_miss)
-        next
-      }
-      for (br in list(list(lad$p_up, "up"), list(lad$p_stay, "stay"),
-                      list(lad$p_down, "down"))) {
-        pr <- br[[1]]; if (pr <= 0) next
-        tolerated <- br[[2]] %in% c("up", "stay")
-        r2 <- if (tolerated && d == TOL) 1L else r
-        f2 <- if (r2 == 1L) TOL else 1L
-        d2 <- switch(br[[2]], up = min(d + 1L, L), stay = d, down = max(d - 1L, f2))
-        P[s, id(d2, r2, w + 1L)] <- P[s, id(d2, r2, w + 1L)] + (1 - lad$p_miss) * pr
-      }
-    }
+    ch <- .ladder_chain(lad)
+    P <- ch$P; hold <- ch$hold; rung <- ch$rung; S <- ch$S; L <- lad$L
 
     # P(dispensing at rung j | visit t), propagated forward
-    pi_t <- numeric(S); pi_t[id(1L, 0L, 0L)] <- 1
+    pi_t <- numeric(S); pi_t[ch$id(1L, 0L, 0L)] <- 1
     prung <- matrix(0, Tmax, L)
     for (t in seq_len(Tmax)) {
       w <- pi_t * hold

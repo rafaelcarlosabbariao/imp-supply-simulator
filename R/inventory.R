@@ -138,6 +138,8 @@ suppressPackageStartupMessages({
 #               default, uses only demand observed up to the day; "rung" projects
 #               the patients on each dose; "oracle" reads the realised future and
 #               is run only as a ceiling
+# visits, ladders: the visit stream from simulate_visits() and the ladders from
+#               build_ladders(); needed by forecast = "rung" only
 # opening     : "snapshot" or "seeded" (see below); NULL picks "snapshot" when
 #               a site inventory is given and "seeded" when sites start empty
 # in_transit  : shipments on the road at the as-of date (flexible columns, see
@@ -158,7 +160,7 @@ suppressPackageStartupMessages({
 # --------------------------------------------------------------------------- #
 project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
                               params = list(), initial_receipts = NULL,
-                              forecast = "trailing", occupancy = NULL,
+                              forecast = "trailing", visits = NULL,
                               ladders = NULL, opening = NULL,
                               in_transit = NULL, lanes = NULL, disruptions = NULL) {
   p <- modifyList(list(
@@ -177,10 +179,9 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   # existed these were the same series, which made the reorder rule an oracle
   # and drove the stockout rate to ~0. See R/forecast.R.
   forecast <- match.arg(forecast, FORECAST_MODES)
-  fc_idx <- if (forecast == "rung" && !is.null(ladders))
-              du_forecast_index(ladders) else NULL
-  if (forecast == "rung" && is.null(occupancy))
-    stop("forecast = \"rung\" needs `occupancy` from build_occupancy().", call. = FALSE)
+  if (forecast == "rung" && (is.null(visits) || is.null(ladders)))
+    stop(paste0("forecast = \"rung\" needs `visits` (from simulate_visits()) and ",
+                "`ladders` (from build_ladders())."), call. = FALSE)
 
   stopifnot(nrow(demand_df) > 0)
   demand_df <- demand_df %>% mutate(Visit_Date = as_date_flex(Visit_Date))
@@ -263,6 +264,19 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
   day_num <- as.numeric(days)                     # numeric compares in the loop
   day_index <- setNames(seq_len(nd), as.character(days))
 
+  # The rung forecast's inputs: each arm's chain, and one row per attended
+  # patient visit, split by protocol. `reach` is the longest window the
+  # planner reads: the longest lane, every known delay, and the coverage.
+  if (forecast == "rung") {
+    rung_tabs <- rung_tables(ladders)
+    pv_by_proto <- split(rung_patient_visits(visits),
+                         rung_patient_visits(visits)$Protocol)
+    reach <- max(p$lead_time_days, if (!is.null(lanes)) lanes$Lead_Time_Days) +
+             (if (!is.null(disr)) sum(disr$Delay_Days[disr$Known]) else 0) +
+             p$target_days + 1
+    rung_scale <- (1 + p$unplanned_visit_pct) / n_trials
+  }
+
   results <- list(); shipments <- list()
   start_n <- as.numeric(start_date)
   n_seed_dropped <- 0L; early_ship <- Inf
@@ -298,6 +312,9 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
     has_depot <- nrow(dp) > 0
 
     lt <- p$lead_time_days; tg <- p$target_days
+    rung_ev <- if (forecast == "rung")
+      rung_events(pv_by_proto[[proto]], proto, du, rung_tabs, start_date, nd,
+                  reach, rung_scale) else list()
 
     # per-site state held in environments (reference semantics -> the shared-
     # depot day loop can mutate a site in place without copying its vectors)
@@ -380,17 +397,10 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
           }
         }
       }
+      # Rung forecast: the day-by-day changes to what the planner expects
+      # from the patients enrolled here (R/forecast.R, rung_events()).
+      if (!is.null(rung_ev[[s]])) { e$ev <- rung_ev[[s]]; e$proj <- numeric(nd) }
       # preallocated output columns (one slot per simulated day)
-      # Rung-forecast state: what the planner can see about this site today.
-      if (!is.null(fc_idx)) {
-        fi <- fc_idx[[paste(proto, du, sep = "\r")]]
-        if (!is.null(fi)) {
-          e$occ     <- occupancy[[paste(proto, s, sep = "\r")]]
-          e$P       <- fi$P
-          e$qty_at  <- fi$qty_at
-          e$cadence <- fi$cadence
-        }
-      }
       e$oh_start <- numeric(nd); e$recv <- numeric(nd); e$disp <- numeric(nd)
       e$exp <- numeric(nd); e$so <- numeric(nd); e$oh_end <- numeric(nd)
       e$on_order <- numeric(nd); e$reord <- numeric(nd); e$dshort <- numeric(nd)
@@ -470,6 +480,8 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
         }
 
         # 5. resupply decision -- forward-coverage (MRP-style) order-up-to.
+        if (!is.null(st$ev) && !is.null(ev <- st$ev[[ti]]))
+          st$proj[ev$land] <- st$proj[ev$land] + ev$w
         #    Size everything off demand actually coming up, not a flat average,
         #    so orders track the enrolment ramp instead of lagging it.
         on_order <- if (length(st$it_q)) sum(st$it_q) else 0

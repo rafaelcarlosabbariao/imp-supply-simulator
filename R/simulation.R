@@ -225,6 +225,11 @@ simulate_enrollment <- function(enrollment_df, num_simulations = 1) {
 # and (b) contained a broken `max(DU_list, FUN=...)` branch that errored whenever
 # an arm mixed cycle lengths. Cadence here is the longest cycle length in the arm.
 # --------------------------------------------------------------------------- #
+# What changed since a patient's last attended visit, by code 0..4.
+STATUS_CHANGES <- c("", "stabilised", "demoted: missed visit",
+                    "demoted: adverse event or unplanned visit",
+                    "restarted: missed visit")
+
 simulate_visits <- function(patient_df, dosing_long, visit_window = 3,
                             simulation_end_date = Sys.Date() + months(6),
                             progress = NULL, titration = NULL) {
@@ -263,12 +268,34 @@ simulate_visits <- function(patient_df, dosing_long, visit_window = 3,
     st <- list(dose  = rep(1L, n), flr = rep(1L, n),
                win   = rep(0L, n), ratch = rep(FALSE, n))
     rung_at <- matrix(0L, n, Tmax)      # 0 = no dispense (missed or inactive)
+    # Status at each visit, for titrating arms: the window position going
+    # into the visit (N = stable), the ratchet, demotions from the stable dose
+    # so far, and what changed since the patient's last attended visit.
+    if (lad$titrates) {
+      win_at <- matrix(0L, n, Tmax); rat_at <- matrix(FALSE, n, Tmax)
+      dem_at <- matrix(0L, n, Tmax); chg_at <- matrix(0L, n, Tmax)
+      dem <- integer(n); pend <- integer(n); last <- integer(n)  # 0 none, 1 titrating, 2 stable
+    }
     for (t in seq_len(Tmax)) {
       active <- t <= V
       if (!any(active)) break
+      pre_win <- st$win; pre_rat <- st$ratch
       step <- .step_titration(st, lad, active)
       st <- step$st
       rung_at[, t] <- step$dispensed
+      if (lad$titrates) {
+        att <- step$dispensed > 0L
+        now <- ifelse(pre_win >= lad$N, 2L, 1L)
+        win_at[, t] <- pre_win; rat_at[, t] <- pre_rat; dem_at[, t] <- dem
+        # 1 stabilised, 2 demoted after a miss, 3 demoted at a visit, 4 restarted
+        chg <- ifelse(pend > 0L, pend, ifelse(now == 2L & last == 1L, 1L, 0L))
+        chg_at[att, t] <- chg[att]
+        pend[att] <- 0L; last[att] <- now[att]
+        stable_miss <- step$miss & pre_win >= lad$N
+        dem <- dem + stable_miss + step$revert
+        pend[stable_miss] <- 2L; pend[step$revert] <- 3L
+        pend[step$miss & pre_win < lad$N & pend == 0L] <- 4L
+      }
     }
 
     # --- expand rungs into co-dispensed kit components -------------------- #
@@ -286,7 +313,24 @@ simulate_visits <- function(patient_df, dosing_long, visit_window = 3,
       pi_ <- hit[, 1L]; ti_ <- hit[, 2L]
       gi  <- idx[pi_]
       vn  <- base_vn[gi] + ti_
-      pieces[[length(pieces) + 1L]] <- data.frame(
+      if (lad$titrates) {
+        w_  <- win_at[hit]
+        status <- data.frame(
+          Dose_Status     = ifelse(w_ >= lad$N, "Stable", "Titrating"),
+          Titration_Visit = ifelse(w_ >= lad$N, NA_integer_, w_ + 1L),
+          Ratchet         = rat_at[hit],
+          Demotions       = dem_at[hit],
+          Status_Change   = STATUS_CHANGES[chg_at[hit] + 1L],
+          stringsAsFactors = FALSE)
+      } else {
+        m <- nrow(hit)
+        status <- data.frame(Dose_Status = rep(NA_character_, m),
+                             Titration_Visit = rep(NA_integer_, m),
+                             Ratchet = rep(NA, m), Demotions = rep(NA_integer_, m),
+                             Status_Change = rep(NA_character_, m),
+                             stringsAsFactors = FALSE)
+      }
+      pieces[[length(pieces) + 1L]] <- cbind(data.frame(
         Protocol   = patient_df$Protocol[gi],
         Cohort     = patient_df$Cohort[gi],
         Country    = patient_df$Country[gi],
@@ -304,7 +348,7 @@ simulate_visits <- function(patient_df, dosing_long, visit_window = 3,
         Kit_ID     = NA_character_,
         Lot_ID     = NA_character_,
         Trial      = patient_df$Trial[gi],
-        stringsAsFactors = FALSE)
+        stringsAsFactors = FALSE), status)
     }
 
     done <- done + n

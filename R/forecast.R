@@ -29,23 +29,30 @@
 #               default here (since 2026-09-24): it uses nothing the planner
 #               lacks.
 #
-#   "rung"      propagates the site's CURRENT DOSE-RUNG OCCUPANCY forward
-#               through the CSP's own titration probabilities.
+#   "rung"      projects every patient enrolled at the site forward from
+#               what an IRT system knows about them today: their dose rung,
+#               their status (titrating, or stable past the titration window),
+#               the ratchet, and their visit number. Each patient is propagated
+#               through the CSP's own titration chain (.ladder_chain() in
+#               R/titration.R), one step per scheduled visit, and stops at their
+#               last cycle.
 #
-# The "rung" mode is the one the ladder makes possible, and the reason it can
-# beat a trailing average is that demand for a dose is not a smooth series --
-# it is a headcount. The units needed at rung d next visit come from the
-# patients at the rungs ADJACENT to d, d itself included:
+# The "rung" mode is the one the ladder makes possible. Demand for a dose is a
+# headcount: the units needed at rung d next visit come from the patients at
+# the rungs ADJACENT to d, d itself included:
 #
 #     E[N_d(t+1)] = N_{d-1}(t) * P(up)
 #                 + N_d(t)     * P(stay)
 #                 + N_{d+1}(t) * P(down)
 #                 + (restart inflow from anyone who misses)
 #
-# That is one step of the same Markov chain the demand engine runs, and every
-# term on the right is observable: an IRT system knows who is on what dose
-# today. A trailing average cannot see a cohort about to step up together; a
-# rung forecast can, because it is counting people rather than smoothing units.
+# for titrating patients, while a stable patient holds their dose unless they
+# miss a visit or are demoted back to titrating (P_Revert). A trailing average
+# cannot see a cohort about to step up together; a rung forecast can, because
+# it counts people rather than smoothing units.
+#
+# The rung forecast knows only the patients already enrolled. A patient who
+# enrolls tomorrow is in no forecast but the oracle's.
 # =========================================================================== #
 
 suppressPackageStartupMessages({ library(dplyr) })
@@ -97,33 +104,18 @@ FORECAST_MODES <- c("oracle", "trailing", "rung")
   }
 
   if (mode == "rung") {
-    # Headcount, not a smoothed series. st$occ is a [days x rungs] matrix of
-    # patients observed at each rung; st$qty_at is units of THIS DU per patient
-    # at each rung. Occupancy is rolled forward one visit at a time through the
-    # CSP transition matrix st$P, and each projected visit contributes its
-    # rung-weighted units.
-    if (is.null(st$occ) || is.null(st$P)) return(NULL)
-    occ <- st$occ[ti, ]
-    if (sum(occ) <= 0) {
-      return(list(rate = 0, lead_demand = 0, coverage_demand = 0))
+    # st$proj[t] holds the units the planner expects on day t from every patient
+    # enrolled at the site as of today; the walk keeps it current (see
+    # rung_events()). The windows are read straight off it.
+    if (is.null(st$proj)) return(NULL)
+    seg <- function(a, b) {
+      a <- max(1L, a); b <- min(nd, b)
+      if (b < a) 0 else max(0, sum(st$proj[a:b]))
     }
-    cadence <- max(1L, as.integer(st$cadence))
-    horizon <- lt + tg
-    n_steps <- ceiling(horizon / cadence)
-    units_by_step <- numeric(n_steps)
-    cur <- occ
-    for (k in seq_len(n_steps)) {
-      units_by_step[k] <- sum(cur * st$qty_at)
-      cur <- as.vector(cur %*% st$P)
-    }
-    # Spread each visit's units over the cadence it covers, then split the
-    # horizon into lead time and coverage.
-    per_day <- rep(units_by_step / cadence, each = cadence)[seq_len(horizon)]
-    per_day[is.na(per_day)] <- 0
-    return(list(rate            = sum(per_day) / horizon,
-                lead_demand     = sum(per_day[seq_len(min(lt, horizon))]),
-                coverage_demand = if (horizon > lt)
-                                    sum(per_day[(lt + 1):horizon]) else 0))
+    lead <- seg(ti, ti + lt - 1L)
+    cov  <- seg(ti + lt, ti + lt + tg - 1L)
+    return(list(rate = (lead + cov) / max(1, lt + tg),
+                lead_demand = lead, coverage_demand = cov))
   }
 
   stop(sprintf("unknown forecast mode: %s", mode), call. = FALSE)
@@ -132,107 +124,143 @@ FORECAST_MODES <- c("oracle", "trailing", "rung")
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
 # --------------------------------------------------------------------------- #
-# rung_occupancy()
-# Patients observed at each dose rung, per (Protocol, Site, Date).
-#
-# Built from the visit stream, which carries the rung each dispensing event was
-# made at. A patient counts at the rung of their most recent visit until their
-# next one -- which is precisely what an IRT system reports.
+# rung_tables()
+# For each arm: its chain, and U[[component]][s, k], the expected units of that
+# component dispensed at the k-th visit after a visit the patient attended in
+# state s. k = 1 steps through the chain given attendance (A); each later step
+# through the full chain (P), missed visits included. U0[[component]][k] is the
+# same from enrollment (visit 0), where every patient starts at rung 1,
+# titrating, and nothing is dispensed.
 # --------------------------------------------------------------------------- #
-rung_occupancy <- function(visits_df, days) {
-  if (!"Rung" %in% names(visits_df))
-    stop("visit stream carries no Rung column; simulate_visits() must emit it.",
-         call. = FALSE)
-  v <- visits_df %>%
-    filter(!is.na(Rung), Rung > 0) %>%
-    distinct(Protocol, Site, SSID, Visit_Date, Rung)
-  if (nrow(v) == 0) return(NULL)
-  v$day <- match(as.character(v$Visit_Date), as.character(days))
-  v <- v[!is.na(v$day), , drop = FALSE]
-  v
-}
-
-# --------------------------------------------------------------------------- #
-# build_occupancy()
-# Patients at each dose rung, per (Protocol, Site), as a [days x rungs] matrix.
-#
-# A patient occupies the rung of their most recent visit until their next one,
-# which is what an IRT system reports when a planner asks "who is on what dose
-# today". Carry-forward, not interpolation: nothing is assumed about a patient
-# between visits.
-# --------------------------------------------------------------------------- #
-build_occupancy <- function(visits_df, days, ladders) {
-  if (!"Rung" %in% names(visits_df)) return(NULL)
-  nd <- length(days)
-  day_of <- setNames(seq_len(nd), as.character(days))
-  L_of <- vapply(ladders, function(l) l$L, integer(1))
-  names(L_of) <- vapply(ladders, function(l) l$protocol, character(1))
-
-  v <- visits_df[!is.na(visits_df$Rung) & visits_df$Rung > 0, , drop = FALSE]
-  if (nrow(v) == 0) return(NULL)
-  v <- v[!duplicated(v[c("Protocol", "Site", "SSID", "Visit_Date")]), , drop = FALSE]
-  v$day <- day_of[as.character(v$Visit_Date)]
-  v <- v[!is.na(v$day), , drop = FALSE]
-  if (nrow(v) == 0) return(NULL)
-
+rung_tables <- function(ladders) {
   out <- list()
-  key <- paste(v$Protocol, v$Site, sep = "\r")
-  for (k in unique(key)) {
-    rows <- v[key == k, , drop = FALSE]
-    L <- L_of[[rows$Protocol[1]]]
-    if (is.null(L) || is.na(L)) next
-    M <- matrix(0, nd, L)
-    # order by patient then day so each patient's spans are contiguous
-    rows <- rows[order(rows$SSID, rows$day), , drop = FALSE]
-    nxt <- c(rows$day[-1], nd + 1L)
-    same <- c(rows$SSID[-1] == rows$SSID[-nrow(rows)], FALSE)
-    upto <- ifelse(same, nxt - 1L, nd)          # last visit runs to the horizon
-    for (i in seq_len(nrow(rows))) {
-      a <- rows$day[i]; b <- min(upto[i], nd); r <- rows$Rung[i]
-      if (b >= a && r >= 1L && r <= L) M[a:b, r] <- M[a:b, r] + 1
+  for (lad in ladders) {
+    ch <- .ladder_chain(lad)
+    K  <- max(1L, lad$max_cycles)
+    nk <- nrow(lad$components)
+    em <- vapply(seq_len(nk), function(ck) ch$hold * lad$qty[ck, ch$rung],
+                 numeric(ch$S))
+    em <- matrix(em, ch$S, nk)
+    U  <- replicate(nk, matrix(0, ch$S, K), simplify = FALSE)
+    U0 <- replicate(nk, numeric(K), simplify = FALSE)
+    D  <- ch$A
+    d0 <- numeric(ch$S); d0[ch$id(1L, 0L, 0L)] <- 1
+    for (k in seq_len(K)) {
+      E <- D %*% em; E0 <- as.vector(d0 %*% em)
+      for (ck in seq_len(nk)) { U[[ck]][, k] <- E[, ck]; U0[[ck]][k] <- E0[ck] }
+      D  <- D %*% ch$P
+      d0 <- as.vector(d0 %*% ch$P)
     }
-    out[[k]] <- M
+    out[[paste(lad$protocol, lad$arm, sep = "\r")]] <- list(
+      lad = lad, ch = ch, U = U, U0 = U0, du = lad$components$DU_Description,
+      cycles = lad$components$Cycles)
   }
   out
 }
 
 # --------------------------------------------------------------------------- #
-# du_forecast_index()
-# For each (Protocol, DU): the transition matrix, the units of that DU at each
-# rung, and the arm's cadence -- everything the "rung" forecast needs.
+# rung_patient_visits()
+# One row per attended patient visit (the visit stream has one row per
+# dispensed component), carrying the status simulate_visits() records.
+# Enrollment records (Visit_Num 0, from simulate_enrollment()) are kept when
+# passed in with the visits: an enrolled patient is in the IRT database from
+# visit 0, before their first dispense.
 # --------------------------------------------------------------------------- #
-du_forecast_index <- function(ladders) {
-  idx <- list()
-  for (lad in ladders) {
-    P <- ladder_transition(lad)
-    for (k in seq_len(nrow(lad$components))) {
-      key <- paste(lad$protocol, lad$components$DU_Description[k], sep = "\r")
-      idx[[key]] <- list(P = P, qty_at = as.numeric(lad$qty[k, ]),
-                         cadence = lad$cadence, L = lad$L)
-    }
-  }
-  idx
+rung_patient_visits <- function(visits_df) {
+  need <- c("Dose_Status", "Titration_Visit", "Ratchet", "Rung")
+  miss <- setdiff(need, names(visits_df))
+  if (length(miss))
+    stop(sprintf(paste0("The rung forecast reads each patient's dose status, and the visit ",
+                        "stream has no %s column. Pass the output of simulate_visits()."),
+                 paste(miss, collapse = ", ")), call. = FALSE)
+  enr <- as.integer(visits_df$Visit_Num) == 0L & is.na(visits_df$Rung)
+  v <- visits_df[enr | (!is.na(visits_df$Rung) & visits_df$Rung > 0),
+                 c("Protocol", "Site", "Trial", "SSID", "TG", "Visit_Num", "Visit_Date",
+                   "Rung", "Ratchet", "Titration_Visit", "Dose_Status")]
+  v$TG <- trimws(as.character(v$TG))
+  v <- v[!duplicated(v[c("Trial", "SSID", "Visit_Num")]), , drop = FALSE]
+  v$Visit_Date <- as_date_flex(v$Visit_Date)
+  v
 }
 
 # --------------------------------------------------------------------------- #
-# ladder_transition()
-# The one-visit transition matrix over dose rungs for a titrating arm --
-# the P in E[N(t+1)] = N(t) P. Marginalised over the ratchet and window states,
-# because a planner sees rungs, not the latent state behind them.
+# rung_events()
+# For one Protocol x DU: per site, the changes to the planner's projection on
+# each day of the walk.
+#
+# A patient's attended visit on day a is what the planner knows about them
+# until their next attended visit (day b + 1). While it stands, it projects
+# units onto day a + k * cadence for each later visit k the patient still has,
+# up to their last cycle. On day a those projections are added; on day b + 1
+# they are replaced by the next visit's. The walk applies the day's changes and
+# reads the lead-time and coverage windows off the running total.
+#
+#   pv      : rung_patient_visits() rows for this protocol
+#   reach   : the longest window the planner will read (lead time + delays +
+#             coverage), so a projection is built only as far as it is read
+#   scale   : (1 + unplanned visit uplift) / number of simulated trials, the
+#             same scaling the realised demand gets
+#
+# Returns list(site = list of length nd, each NULL or list(land, w)).
 # --------------------------------------------------------------------------- #
-ladder_transition <- function(lad) {
-  L <- lad$L
-  P <- matrix(0, L, L)
-  if (!lad$titrates || L < 2L) { P[1, 1] <- 1; return(P) }
-  for (d in seq_len(L)) {
-    # miss -> back to the floor. Marginalised: a planner does not know which
-    # patients have ratcheted, so the floor is taken as the tolerance rung for
-    # anyone at or above it and rung 1 below.
-    f <- if (d >= lad$tol) lad$tol else 1L
-    P[d, f] <- P[d, f] + lad$p_miss
-    P[d, min(d + 1L, L)] <- P[d, min(d + 1L, L)] + (1 - lad$p_miss) * lad$p_up
-    P[d, d]              <- P[d, d]              + (1 - lad$p_miss) * lad$p_stay
-    P[d, max(d - 1L, f)] <- P[d, max(d - 1L, f)] + (1 - lad$p_miss) * lad$p_down
+rung_events <- function(pv, proto, du, tabs, start_date, nd, reach, scale) {
+  if (is.null(pv) || nrow(pv) == 0) return(list())
+  pv$a <- as.integer(pv$Visit_Date - start_date) + 1L
+  pv <- pv[order(pv$Trial, pv$SSID, pv$a), , drop = FALSE]
+  same <- c(pv$Trial[-1] == pv$Trial[-nrow(pv)] & pv$SSID[-1] == pv$SSID[-nrow(pv)], FALSE)
+  pv$b <- ifelse(same, c(pv$a[-1], NA) - 1L, nd)
+  pv <- pv[pv$b >= 1L & pv$a <= nd, , drop = FALSE]
+  if (nrow(pv) == 0) return(list())
+
+  pts <- list()
+  for (arm in unique(pv$TG)) {
+    tb <- tabs[[paste(proto, arm, sep = "\r")]]
+    if (is.null(tb)) next
+    ck <- match(du, tb$du)
+    if (is.na(ck)) next
+    r   <- pv[pv$TG == arm, , drop = FALSE]
+    lad <- tb$lad; cad <- lad$cadence
+    t   <- as.integer(r$Visit_Num)
+    enr <- t == 0L
+    s <- if (!lad$titrates) rep(1L, nrow(r)) else
+      tb$ch$id(as.integer(r$Rung), as.integer(as.logical(r$Ratchet)),
+               ifelse(r$Dose_Status == "Stable", lad$N, as.integer(r$Titration_Visit) - 1L))
+    s[enr] <- 1L
+    Kj <- pmin(tb$cycles[ck] - t, ncol(tb$U[[ck]]),
+               ceiling((r$b - r$a + reach) / cad))
+    Kj[is.na(Kj)] <- 0L
+    if (!any(Kj >= 1L)) next
+    for (k in seq_len(max(Kj))) {
+      on <- which(Kj >= k)
+      if (!length(on)) break
+      land <- r$a[on] + k * cad
+      w <- ifelse(enr[on], tb$U0[[ck]][k], tb$U[[ck]][s[on], k]) * scale
+      keep <- land >= 1L & land <= nd & w > 0
+      if (!any(keep)) next
+      on <- on[keep]
+      pts[[length(pts) + 1L]] <- data.frame(
+        Site = r$Site[on], a = pmax(1L, r$a[on]), b1 = r$b[on] + 1L,
+        land = as.integer(land[keep]), w = w[keep], stringsAsFactors = FALSE)
+    }
   }
-  P
+  if (!length(pts)) return(list())
+  pts <- do.call(rbind, pts)
+
+  # A projection landing before its replacement day is never read again.
+  rm <- pts[pts$b1 <= nd & pts$land >= pts$b1, , drop = FALSE]
+  ev <- rbind(data.frame(Site = pts$Site, day = pts$a, land = pts$land, w = pts$w),
+              data.frame(Site = rm$Site, day = rm$b1, land = rm$land, w = -rm$w))
+  out <- list()
+  for (site in unique(ev$Site)) {
+    e <- ev[ev$Site == site, , drop = FALSE]
+    key <- e$day * (nd + 1) + e$land
+    agg <- rowsum(e$w, key, reorder = TRUE)
+    kk  <- as.numeric(rownames(agg))
+    day <- as.integer(kk %/% (nd + 1)); land <- as.integer(kk %% (nd + 1))
+    lst <- vector("list", nd)
+    for (g in split(seq_along(day), day))
+      lst[[day[g[1]]]] <- list(land = land[g], w = agg[g, 1])
+    out[[site]] <- lst
+  }
+  out
 }

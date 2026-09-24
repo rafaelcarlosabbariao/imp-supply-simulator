@@ -65,6 +65,7 @@ forecast. Rungs, the ratchet and the restart rule are set out in
 | `Titration_Visits` | `N`, the length of the titration window |
 | `P_Up`, `P_Stay`, `P_Down` | per-visit transitions, conditional on attending; validated to sum to 1 |
 | `P_Miss` | per-visit probability of a missed visit |
+| `P_Revert` | per attended visit at the stable dose, the probability of demotion back to titrating (an adverse event, or an unplanned visit that reopens the dose); default 0 |
 | `Tolerance_Level` | the ratchet rung; defaults to the second-to-last |
 | `Restart_Policy` | `uncapped` — see below |
 
@@ -76,6 +77,25 @@ the cohort and swings total volume ~35%, while moving the low-dose DU's share
 of demand by under a point. It is a nuisance parameter for any question about
 the demand *mix*. In the clinic this step is a human one — the study lead acts
 on the site clinician's recommendation — and the simulator auto-sets it.
+
+**Dose status.** On a titrating arm every patient is *titrating* while inside
+the titration window and *stable* once past it. A stable patient is demoted back
+to titrating when they miss a visit (dose back to the floor) or, with
+probability `P_Revert` at a visit they attend, after an adverse event or an
+unplanned visit: they take their current dose home and titrate again from it
+at the next visit. Each dispensing row carries the status the visit was made
+at:
+
+| Column | Meaning |
+|---|---|
+| `Dose_Status` | `Titrating` or `Stable`; empty on a fixed-dose arm |
+| `Titration_Visit` | the visit's position in the current titration window, 1 to `N`; empty when stable |
+| `Ratchet` | whether the patient has tolerated the tolerance dose |
+| `Demotions` | times the patient has gone from stable back to titrating before this visit |
+| `Status_Change` | what changed since their last attended visit: `stabilised`, `demoted: missed visit`, `demoted: adverse event or unplanned visit`, `restarted: missed visit` (a miss while titrating) |
+
+Demotion reads the same random draw the missed visit does, so a run with
+`P_Revert = 0` draws exactly the numbers it drew before the parameter existed.
 
 **`expected_demand()`** solves the same ladder exactly by forward recursion, with
 no Monte Carlo and in O(1) time regardless of patient count. Use it for the
@@ -258,6 +278,40 @@ the showcase reported assumed the planner knew future demand. On the sample
 (as-of 2024-01-01, 5 trials) the switch to `trailing` moves the at-risk count
 from 15 to 18 of 30 site × DUs and leaves stockouts at 0. `$summary` carries a
 `Forecast` column naming the mode each row was run under.
+
+### 2.4a The rung forecast
+
+The rung forecast counts the patients enrolled at a site and projects each one
+forward from what an IRT system holds about them: their dose rung, their dose
+status, the ratchet and their visit number (§1.3). It is built in
+`R/forecast.R`:
+
+- `rung_tables()` turns each arm's ladder into the chain `expected_demand()`
+  uses (`.ladder_chain()`), on the state (rung, ratchet, window position), and
+  tabulates the expected units of every DU at the 1st, 2nd, … visit after a
+  visit in each state. The first step is taken given the patient attended the
+  visit just seen; later steps allow for misses and demotions.
+- A patient's attended visit on day `a` stands until their next attended visit.
+  While it stands, it projects units onto day `a + k × cadence` for each visit
+  `k` they have left, up to their last cycle. A patient is known from enrollment
+  (visit 0), before their first dispense, when the enrollment records are passed
+  in with the visits.
+- The walk keeps a running total of those projections per site × DU and reads
+  the lead-time and coverage windows off it.
+
+Arms are projected separately and summed per DU, and patients are identified
+by trial and patient ID, with each trial weighted `1 / trials`, the same
+averaging the realised demand gets. The projection is also uplifted by
+`unplanned_visit_pct`.
+
+Checked in `tests/test_forecast.R`: from enrollment day, the forecast equals
+`expected_demand()` over the window to machine precision; mid-titration, from
+the doses observed on 2,000 patients, it is within 2% of it.
+
+Before 2026-09-24 the rung forecast had four faults, recorded in
+`docs/remaining-work-plan-2026-09-24.md`: it kept counting patients after
+their last visit, it projected the dose just dispensed as the next one, it kept
+titrating patients who were past the window, and it pooled arms and trials.
 
 ### 2.5 Outputs
 

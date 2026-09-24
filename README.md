@@ -184,7 +184,7 @@ center is matched to its only site, and the run stops if it has more than one.
 Rscript tests/test_titration.R   # 29 checks; exits non-zero on failure
 Rscript tests/test_seeding.R     # 40 checks
 Rscript tests/test_transit.R     # 17 checks
-Rscript tests/test_forecast.R    # 6 checks
+Rscript tests/test_forecast.R    # 27 checks
 Rscript tests/benchmark.R        # runtime baseline
 ```
 
