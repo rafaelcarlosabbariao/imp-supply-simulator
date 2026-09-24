@@ -290,6 +290,10 @@ site_status_frame <- function(summary, loc) {
         v <- First_Stockout[!is.na(First_Stockout)]
         if (length(v)) min(v) else as.Date(NA)
       },
+      Earliest_At_Risk = {
+        v <- First_At_Risk[!is.na(First_At_Risk)]
+        if (length(v)) min(v) else as.Date(NA)
+      },
       .groups = "drop") |>
     dplyr::mutate(Status = ifelse(Stockout_DUs > 0, "STOCKOUT",
                           ifelse(AtRisk_DUs > 0, "AT RISK", "OK")))
@@ -299,9 +303,11 @@ site_status_frame <- function(summary, loc) {
 site_status_hover <- function(d) {
   esd <- ifelse(is.na(d$Earliest_Stockout), "—",
                 as.character(as.Date(d$Earliest_Stockout, origin = "1970-01-01")))
+  ear <- ifelse(is.na(d$Earliest_At_Risk), "—",
+                as.character(as.Date(d$Earliest_At_Risk, origin = "1970-01-01")))
   sprintf(
-    "<b>%s — site %s</b><br>Status: %s<br>Min days of supply: %s<br>Earliest stockout: %s<br>%d DU(s): %d stockout, %d at risk",
+    "<b>%s — site %s</b><br>Status: %s<br>Min days of supply: %s<br>First at risk: %s<br>Earliest stockout: %s<br>%d DU(s): %d stockout, %d at risk",
     d$Protocol, d$Site, as.character(d$Status),
     ifelse(is.finite(d$Min_Days_Supply), round(d$Min_Days_Supply, 1), "∞"),
-    esd, d$DUs, d$Stockout_DUs, d$AtRisk_DUs)
+    ear, esd, d$DUs, d$Stockout_DUs, d$AtRisk_DUs)
 }

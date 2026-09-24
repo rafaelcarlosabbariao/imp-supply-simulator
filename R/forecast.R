@@ -121,6 +121,51 @@ FORECAST_MODES <- c("oracle", "trailing", "rung")
   stop(sprintf("unknown forecast mode: %s", mode), call. = FALSE)
 }
 
+# --------------------------------------------------------------------------- #
+# .forecast_short()
+# The AT RISK test: does the planner's forecast say today's stock runs out
+# before the next shipment lands? The Pfizer-era tool (the C399 deck) set the
+# reorder point a lead time before running inventory crossed safety stock, so
+# the crossing was routine, and raised its alert on site inventory against the
+# forecasted burn. This is that alert.
+#
+#   st    per-site state after today's dispensing and reorder decision
+#   fc    today's .forecast_window() result (its rate, for trailing)
+#   ti    today (index); today_n its day number
+#   nxt   day number of the next arrival
+#
+# Burn runs over [ti + 1, nxt - 1]: the arrival lands before that day's
+# dispensing. Lots are drawn FEFO, and a lot only covers burn up to the day
+# before it expires. Returns the units the forecast says will be short (>= 0).
+# --------------------------------------------------------------------------- #
+.forecast_short <- function(mode, st, fc, ti, today_n, nxt, nd) {
+  b <- min(nd, ti + (nxt - today_n) - 1L)
+  if (b <= ti) return(0)
+  # expected demand over [ti + 1, k] for each k in ti+1..b
+  cum <- if (mode == "oracle") {
+    st$csum[(ti + 1L):b] - st$csum[ti]
+  } else if (mode == "rung" && !is.null(st$proj)) {
+    cumsum(pmax(0, st$proj[(ti + 1L):b]))
+  } else {
+    fc$rate * seq_len(b - ti)
+  }
+  need <- cum[length(cum)]
+  if (need <= 1e-9) return(0)
+  q <- st$pool$q; e <- st$pool$e
+  if (!length(q)) return(need)
+  o <- order(ifelse(is.na(e), Inf, e))
+  covered <- 0
+  for (j in o) {
+    # a lot expiring on day e is gone before dispensing on day e
+    last <- if (is.na(e[j])) b else min(b, ti + (e[j] - today_n) - 1L)
+    if (last <= ti) next
+    cap <- cum[last - ti] - covered
+    if (cap > 0) covered <- covered + min(q[j], cap)
+    if (covered >= need - 1e-9) return(0)
+  }
+  need - covered
+}
+
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
 # --------------------------------------------------------------------------- #

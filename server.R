@@ -520,6 +520,7 @@ shinyServer(function(input, output, session) {
         tags$td(style = "text-align:right", s$Start_On_Hand[i]),
         tags$td(style = "text-align:right",
                 ifelse(is.finite(s$Min_Days_Supply[i]), round(s$Min_Days_Supply[i], 1), "∞")),
+        tags$td(ifelse(is.na(s$First_At_Risk[i]), "—", as.character(s$First_At_Risk[i]))),
         tags$td(ifelse(is.na(s$First_Stockout[i]), "—", as.character(s$First_Stockout[i]))),
         tags$td(mc2_status_chip(s$Status[i]))
       )
@@ -549,7 +550,8 @@ shinyServer(function(input, output, session) {
                      ifelse(is.na(planned), "—", planned), cohorts, window)),
       tags$table(class = "table table-sm",
         tags$thead(tags$tr(tags$th("DU"), tags$th("On hand"),
-                           tags$th("Days supply"), tags$th("First stockout"), tags$th("Status"))),
+                           tags$th("Days supply"), tags$th("First at risk"),
+                           tags$th("First stockout"), tags$th("Status"))),
         tags$tbody(du_rows)),
       if (length(ship_rows)) tagList(
         tags$p(tags$b("Inbound shipments"), tags$span(class = "mc2-muted", " (the next eight, and any overdue)")),
@@ -587,10 +589,12 @@ shinyServer(function(input, output, session) {
       mutate(Overdue_Shipments = coalesce(Overdue_Shipments, 0L)) %>%
       filter(Status != "OK" | Overdue_Shipments > 0) %>%
       mutate(Earliest_Stockout = as.Date(Earliest_Stockout, origin = "1970-01-01"),
+             Earliest_At_Risk = as.Date(Earliest_At_Risk, origin = "1970-01-01"),
              Min_Days_Supply = round(Min_Days_Supply, 1)) %>%
-      arrange(factor(Status, levels = c("STOCKOUT", "AT RISK")), Earliest_Stockout) %>%
+      arrange(factor(Status, levels = c("STOCKOUT", "AT RISK")), Earliest_Stockout, Earliest_At_Risk) %>%
       select(Protocol, Site, Country = country_name, Status,
-             Min_Days_Supply, Earliest_Stockout, Stockout_DUs, AtRisk_DUs, Overdue_Shipments)
+             Min_Days_Supply, Earliest_At_Risk, Earliest_Stockout, Stockout_DUs, AtRisk_DUs,
+             Overdue_Shipments)
     datatable(d, rownames = FALSE,
               caption = "Sites needing attention, worst first",
               options = list(dom = "t", scrollX = TRUE, pageLength = 20)) %>%

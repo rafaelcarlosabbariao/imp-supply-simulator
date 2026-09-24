@@ -283,5 +283,37 @@ cat("\n== 10. stock about to expire is not counted as cover ==\n")
      sum(pr2$daily$Expired) == 0, sprintf("expired %.0f", sum(pr2$daily$Expired)))
 }
 
+cat("\n== 11. AT RISK: short before the next arrival, on the planner's forecast ==\n")
+{
+  # Day 1 is day number 100; with the next arrival on day 106 the burn runs
+  # over days 101..105, five units at one a day.
+  st <- list(pool = list(q = 10, e = NA_real_), csum = cumsum(rep(1, 20)), proj = NULL)
+  fc <- list(rate = 1)
+  ok("stock that covers the burn to the next arrival is not short",
+     .forecast_short("trailing", st, fc, 1L, 100, 106, 20) == 0)
+  st$pool$q <- 3
+  ok("stock under the burn is short by the difference",
+     abs(.forecast_short("trailing", st, fc, 1L, 100, 106, 20) - 2) < 1e-9)
+  st$pool <- list(q = 10, e = 103)
+  ok("a lot covers burn only until the day before it expires",
+     abs(.forecast_short("trailing", st, fc, 1L, 100, 106, 20) - 3) < 1e-9)
+  st$pool <- list(q = 6, e = NA_real_); st$proj <- c(0, 5, 5, rep(0, 17))
+  ok("the rung forecast reads its own projection, not the trailing rate",
+     abs(.forecast_short("rung", st, fc, 1L, 100, 106, 20) - 4) < 1e-9)
+
+  orc <- run(d, stock, depot, pars, forecast = "oracle")
+  ok("a dip below safety stock with a shipment landing in time is OK",
+     orc$summary$Min_Days_Supply < 30 && orc$summary$Status == "OK",
+     sprintf("%s at %.1f days", orc$summary$Status, orc$summary$Min_Days_Supply))
+  off <- run(d, stock, depot, modifyList(pars, list(enable_resupply = FALSE)))
+  ok("with resupply off, the flag goes up before the stockout",
+     off$summary$Status == "STOCKOUT" && off$summary$First_At_Risk < off$summary$First_Stockout,
+     sprintf("at risk %s, stockout %s", off$summary$First_At_Risk, off$summary$First_Stockout))
+  tr <- run(d, stock, depot, pars)
+  ok("a shortfall the trailing forecast expected but demand did not bring is AT RISK",
+     tr$summary$Status == "AT RISK" && tr$summary$Days_At_Risk > 0 &&
+       is.na(tr$summary$First_Stockout))
+}
+
 cat(sprintf("\n%d passed, %d failed\n", .pass, .fail))
 quit(status = if (.fail > 0L) 1L else 0L)

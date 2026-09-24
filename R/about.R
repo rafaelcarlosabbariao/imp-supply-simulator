@@ -130,7 +130,8 @@ MC2_TABS <- c("1. Study Configuration", "2. Visits & Demand", "3. Supply & Inven
   <title id="mc2-ss-t">The resupply rule</title>
   <desc id="mc2-ss-d">Stock on hand falls as units are dispensed. When it reaches the reorder
     point an order is placed; it arrives one lead time later and lifts stock back toward the
-    order-up-to level. A dip below the safety-stock line marks the site at risk.</desc>
+    order-up-to level. A dip below the safety-stock line while the order is on its way is
+    routine; the site is at risk only if the forecast says it runs out before the order lands.</desc>
   <style>
     .ax  { stroke: {{separator}}; stroke-width: 1.2; }
     .lvl { stroke-width: 1.2; stroke-dasharray: 5 4; }
@@ -164,8 +165,8 @@ MC2_TABS <- c("1. Study Configuration", "2. Visits & Demand", "3. Supply & Inven
   <line x1="230" y1="190" x2="230" y2="202" stroke="{{muted}}" stroke-width="1.2"/>
   <text class="t" x="190" y="213" text-anchor="middle">lead time</text>
 
-  <circle cx="420" cy="176" r="5.5" fill="{{fill_atrisk}}" stroke="{{surface}}" stroke-width="1.5"/>
-  <text class="tb" x="412" y="200" text-anchor="end" fill="{{warning}}">below safety stock: AT RISK</text>
+  <circle cx="420" cy="176" r="5.5" fill="{{surface}}" stroke="{{muted}}" stroke-width="1.5"/>
+  <text class="t" x="412" y="200" text-anchor="end">below safety stock, order landing: OK</text>
 </svg>')
 
 # ---- page ------------------------------------------------------------------ #
@@ -220,7 +221,7 @@ mc2_about_page <- function() {
         .about_status_row("STOCKOUT",
           "On at least one day inside the horizon, demand at the site was more than the stock it held. The date shown is the first such day."),
         .about_status_row("AT RISK",
-          "The site never ran out, but its days of supply fell below the safety-stock setting at some point."),
+          "The site never ran out, but on at least one day the forecast the reorder rule uses said its stock would run out before the next shipment landed. The date shown is the first such day."),
         .about_status_row("OK", "Neither of the above."),
         tags$p(class = "mc2-muted", style = "margin-top:12px",
           "A site on the map takes the worst status across its DUs. Days of supply is stock on",
@@ -283,8 +284,9 @@ mc2_about_page <- function() {
                 "to score the other two against; no planner has it."),
         tags$li("The rung forecast knows only the patients already enrolled at a site. It cannot see",
                 "a patient who has not enrolled yet."),
-        tags$li("AT RISK is set by a single day below the safety stock. On the sample most AT RISK",
-                "flags are dips of a few days just before a reorder lands (METHODOLOGY §2.5a)."),
+        tags$li("AT RISK reads the same forecast the reorder rule orders on, so it warns only of a",
+                "shortfall that forecast can see. Under the trailing forecast most stockouts on",
+                "titrating protocols come without one (METHODOLOGY §2.5a)."),
         tags$li("Patients do not screen-fail or discontinue. Each enrolled patient runs through all",
                 "their cycles or until the horizon."),
         tags$li("Inventory is projected once, against the average demand across the simulated trials."),

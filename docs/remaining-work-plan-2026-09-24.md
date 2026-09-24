@@ -330,4 +330,8 @@ track that on top of visit counts (7.2); push once, at the end (7.3).
 - **E3. The confirmatory run finished** on 2026-09-24 at R = 50 on 116
   protocols, not the R = 500 this plan assumed, because the §8 rule picked 50.
   Results are in `EXPERIMENT.md` under *Results*, with the run's files in
-  `results/confirmatory/`. The AT RISK rule is still undecided.
+  `results/confirmatory/`.
+- **D5 decided (2026-09-24).** AT RISK now flags a pair when the planner's own
+  forecast says its stock runs out before the next shipment lands, the alert
+  of the Pfizer-era tool's overview deck (METHODOLOGY §2.5a). The showcase
+  cards and map were regenerated: 1 stockout, 0 at risk, 8 healthy.

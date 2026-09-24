@@ -416,6 +416,7 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
       e$exp <- numeric(nd); e$so <- numeric(nd); e$oh_end <- numeric(nd)
       e$on_order <- numeric(nd); e$reord <- numeric(nd); e$dshort <- numeric(nd)
       e$dos <- numeric(nd); e$seed <- numeric(nd); e$sshort <- numeric(nd)
+      e$short <- numeric(nd)
       site_state[[s]] <- e
     }
 
@@ -543,6 +544,14 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
           }
         }
 
+        # 6. AT RISK: would the stock run out, on the planner's own forecast,
+        #    before the next shipment lands? With nothing on the road, the next
+        #    arrival is an order placed tomorrow; with resupply off, none comes.
+        nxt <- if (length(st$it_arrive)) min(st$it_arrive)
+               else if (p$enable_resupply) today_n + lt_plan + 1
+               else day_num[nd] + 1
+        st$short[ti] <- .forecast_short(forecast, st, fc, ti, today_n, nxt, nd)
+
         st$oh_start[ti] <- on_hand_start; st$recv[ti] <- received
         st$disp[ti] <- dispensed; st$exp[ti] <- expired
         st$so[ti] <- stockout; st$oh_end[ti] <- on_hand_end
@@ -564,6 +573,7 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
         On_Order = st$on_order, Reorder_Qty = st$reord,
         Seed_Shipped = st$seed, Seed_Short = st$sshort,
         Depot_Shortfall = st$dshort, Days_Of_Supply = st$dos,
+        Projected_Short = st$short,
         stringsAsFactors = FALSE)
       shipments[[paste(proto, du, s)]] <- .ledger_frame(st$lg, proto, s, du)
     }
@@ -599,6 +609,11 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
       Depot_Shortfalls = sum(Depot_Shortfall > 0),
       End_On_Hand      = round(last(On_Hand_End), 1),
       Min_Days_Supply  = round(suppressWarnings(min(Days_Of_Supply)), 1),
+      Days_At_Risk     = sum(Projected_Short > 1e-9),
+      First_At_Risk    = {
+        ar <- Date[Projected_Short > 1e-9]
+        if (length(ar)) min(ar) else as.Date(NA)
+      },
       First_Stockout   = {
         so <- Date[Stockout_Units > 1e-9]
         if (length(so)) min(so) else as.Date(NA)
@@ -607,7 +622,7 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
     ) %>%
     mutate(Status = case_when(
       !is.na(First_Stockout)              ~ "STOCKOUT",
-      Min_Days_Supply < params_num(p, "safety_stock_days") ~ "AT RISK",
+      Days_At_Risk > 0                    ~ "AT RISK",
       TRUE                                ~ "OK"
     ), Forecast = forecast) %>%
     arrange(factor(Status, levels = c("STOCKOUT", "AT RISK", "OK")),

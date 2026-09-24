@@ -360,16 +360,18 @@ randomised experiment in `EXPERIMENT.md`; it is what motivates it.
 
 **Daily** — one row per `(Protocol, Site, DU, Date)`:
 `On_Hand_Start, Received, Dispensed, Expired, Stockout_Units, On_Hand_End,
-On_Order, Reorder_Qty, Depot_Shortfall, Days_Of_Supply`
-(`Days_Of_Supply = on_hand / forward daily rate`).
+On_Order, Reorder_Qty, Depot_Shortfall, Days_Of_Supply, Projected_Short`
+(`Days_Of_Supply = on_hand / forward daily rate`; `Projected_Short` is §2.5a's
+test).
 
 **Summary** — one row per `(Protocol, Site, DU)` with totals, the minimum
-days-of-supply, the **first stockout date**, and a status:
+days-of-supply, the **first stockout date**, `Days_At_Risk`, `First_At_Risk`,
+and a status:
 
 | Status | Condition |
 |---|---|
 | `STOCKOUT` | at least one day with unmet demand |
-| `AT RISK` | never stocks out, but min days-of-supply < `safety_stock_days` |
+| `AT RISK` | never stocks out, but on at least one day the planner's forecast said the stock would run out before the next shipment landed (§2.5a) |
 | `OK` | otherwise |
 
 **Portfolio** (`portfolio_summary`) — rolls the summary up by study and overall:
@@ -401,10 +403,45 @@ a delivery, so the rule was measured on 2026-09-24 against the sample (as-of
 
 18 of 30 pairs are AT RISK. Together they spend 0.5% of their days below the
 safety stock, and 14 of the 18 never fall below 23 days of supply. Most of the
-flags are dips of a few days before a reorder lands. The rule is unchanged
-until a replacement is chosen; the candidates are flagging only a run longer
-than a set number of days, or flagging against the stock projected at the next
-arrival.
+flags are dips of a few days before a reorder lands.
+
+**The rule adopted, 2026-09-24.** Rafael chose the rule the Pfizer-era tool
+used. Its overview deck (C399) set the reorder point a lead time before running
+inventory crossed safety stock, so the crossing was the routine trigger for an
+order, and it raised its alert on site inventory against the forecasted burn.
+The engine now does the same. Each day, after dispensing and the reorder
+decision, it projects the site's stock to the next arrival:
+
+- the next arrival is the earliest shipment on the road, or, with nothing on
+  the road, an order placed tomorrow (with resupply off, none comes and the
+  projection runs to the horizon);
+- the burn is the demand the same forecast mode expects over the days before
+  that arrival (`trailing`: its rate; `rung`: its per-day projection; `oracle`:
+  realised demand);
+- lots are drawn first-expiry-first, and a lot covers burn only until the day
+  before it expires.
+
+`Projected_Short` is the units the projection falls short by. A pair is AT RISK
+if that is positive on any day and it never stocks out; `First_At_Risk` is the
+first such day, and it is reported for STOCKOUT pairs too, as the warning they
+had. The test only reads the walk: on the sample, the daily table and the
+shipment ledger are identical to the old engine's apart from the new column.
+
+On the sample above it flags none of the 30 pairs; the four deepest dips (7 to
+17 days of supply) each had a shipment on the road that landed in time. Under
+the Argentina customs hold it flags the one pair that stocks out, before the
+stockout. On the 18-protocol frame (one replication, seeded sites):
+
+| Forecast | Stratum | Pairs | STOCKOUT | AT RISK | Old rule | Stockouts with a warning (≥ 7 days) |
+|---|---|---|---|---|---|---|
+| trailing | fixed dose | 1,076 | 66 | 40 | 1,007 | 32 (19) |
+| trailing | titrating | 453 | 354 | 22 | 99 | 59 (48) |
+| rung | fixed dose | 1,076 | 5 | 2 | 1,054 | 5 (5) |
+| rung | titrating | 453 | 65 | 11 | 376 | 6 (3) |
+
+The flag is only as good as the forecast it reads. Under trailing, 295 of the
+354 titrating stockouts come with no warning, because the forecast that would
+have warned is the one that cannot see the titration shift.
 
 ### 2.6 Stock in transit, lead time by country, and disruptions
 
