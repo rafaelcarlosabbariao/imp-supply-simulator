@@ -1,5 +1,5 @@
 # =========================================================================== #
-# server.R  --  Study Simulation: IMP demand + supply/inventory
+# server.R  --  MC²: Monte-Carlo IMP demand + supply/inventory
 #
 # Demand (enrollment -> visits -> dispensing) AND supply (inventory projection
 # with expiry, resupply, stockout detection) for ANY protocol whose inputs use
@@ -131,10 +131,12 @@ shinyServer(function(input, output, session) {
       summarise(Count = n(), .groups = "drop") %>%
       ggplot(aes(Visit_Date_YrQtr, Count, group = interaction(Protocol, Trial),
                  color = Protocol)) +
-      geom_line(alpha = 0.5) +
-      labs(title = "Patients Enrolled Over Time (all trials)",
-           x = "Quarter", y = "Patients Enrolled") +
-      theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+      geom_line(alpha = 0.6) +
+      scale_colour_mc2() +
+      labs(title = "Patients enrolled over time",
+           subtitle = "One line per simulated trial",
+           x = "Quarter", y = "Patients enrolled") +
+      theme_mc2() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
   }, width = 760, height = 360, res = 96)
 
   output$enrolled_subjects_DT <- DT::renderDataTable({
@@ -172,11 +174,14 @@ shinyServer(function(input, output, session) {
       group_by(DU_Desc, Visit_Date_YrMo) %>%
       summarise(Units = sum(Qty), .groups = "drop") %>%
       ggplot(aes(Visit_Date_YrMo, Units, group = DU_Desc, color = DU_Desc)) +
-      geom_line() +
-      labs(title = "IMP Units Dispensed Over Time (avg across trials shown in table)",
-           x = "Month", y = "Units Dispensed") +
-      theme_minimal() +
-      theme(legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1)) +
+      geom_line(linewidth = .7) +
+      scale_colour_mc2() +
+      scale_x_every(3) +
+      labs(title = "IMP units dispensed over time",
+           subtitle = "Summed across simulated trials; the table shows the average",
+           x = "Month", y = "Units dispensed") +
+      theme_mc2() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
       guides(color = guide_legend(ncol = 2))
   }, width = 760, height = 380, res = 96)
 
@@ -243,26 +248,19 @@ shinyServer(function(input, output, session) {
     req(input$run_inventory > 0)
     port <- portfolio_summary(projection())
     o <- port$overall
-    box_div <- function(label, value, color) {
-      div(style = paste0("flex:1; min-width:120px; margin:4px; padding:14px; border-radius:8px;",
-                         "text-align:center; color:white; background:", color, ";"),
-          div(style = "font-size:26px; font-weight:700;", value),
-          div(style = "font-size:13px;", label))
-    }
-    div(style = "display:flex; flex-wrap:wrap;",
-        box_div("Studies", o$Studies, "#34568B"),
-        box_div("Site x DU tracked", o$Site_DU_Tracked, "#5B7B9A"),
-        box_div("STOCKOUT", o$Stockouts, "#B00020"),
-        box_div("AT RISK", o$At_Risk, "#E08A00"),
-        box_div("OK", o$OK, "#2E7D32"),
-        box_div("Units expired", round(o$Total_Expired), "#6D4C41"))
+    div(class = "mc2-kpis",
+        mc2_kpi("Studies", o$Studies, "flask"),
+        mc2_kpi("Site × DU tracked", o$Site_DU_Tracked, "location-dot"),
+        mc2_kpi("Stockout", o$Stockouts, "circle-xmark", status = "STOCKOUT"),
+        mc2_kpi("At risk", o$At_Risk, "triangle-exclamation", status = "AT RISK"),
+        mc2_kpi("OK", o$OK, "circle-check"),
+        mc2_kpi("Units expired", round(o$Total_Expired), "hourglass-end"))
   })
 
   output$portfolio_by_study_DT <- DT::renderDataTable({
     req(input$run_inventory > 0)
     port <- portfolio_summary(projection())
-    datatable(port$by_study, caption = "Portfolio status by study",
-              rownames = FALSE, options = list(scrollX = TRUE, dom = "t"))
+    datatable(port$by_study, rownames = FALSE, options = list(scrollX = TRUE, dom = "t"))
   })
 
   # ---- site x DU status board (colour-coded) ----------------------------- #
@@ -274,9 +272,7 @@ shinyServer(function(input, output, session) {
               extensions = c("Buttons"),
               options = list(dom = "Bfrtip", scrollX = TRUE, pageLength = 15,
                              buttons = c("copy", "csv", "excel"))) %>%
-      formatStyle("Status",
-        backgroundColor = styleEqual(c("STOCKOUT", "AT RISK", "OK"),
-                                     c("#f8d7da", "#fff3cd", "#d4edda")))
+      mc2_status_cells("Status")
   })
 
   # ---- inventory over time (drill-down) ---------------------------------- #
@@ -300,15 +296,15 @@ shinyServer(function(input, output, session) {
     d <- d %>% mutate(Date = as.Date(Date))
     ss_line <- input$safety_stock_days
     ggplot(d, aes(Date, On_Hand_End, color = DU)) +
-      geom_line() +
+      geom_line(linewidth = .6) +
       geom_point(data = d %>% filter(Stockout_Units > 1e-9),
-                 aes(Date, On_Hand_End), color = "red", size = 1) +
-      labs(title = paste("Projected on-hand inventory -", input$inv_protocol,
+                 aes(Date, On_Hand_End), color = STATUS_FILL[["STOCKOUT"]], size = 1.2) +
+      scale_colour_mc2() +
+      labs(title = paste("Projected on-hand inventory,", input$inv_protocol,
                          if (nzchar(input$inv_site %||% "")) paste("site", input$inv_site) else ""),
-           subtitle = "Red points = stockout days",
+           subtitle = "Red points are stockout days",
            x = NULL, y = "Units on hand (site)") +
-      theme_minimal() +
-      theme(legend.position = "bottom") +
+      theme_mc2() +
       guides(color = guide_legend(ncol = 2))
   }, width = 760, height = 360, res = 96)
 
@@ -330,34 +326,10 @@ shinyServer(function(input, output, session) {
   # ======================================================================== #
   # SITE MAP : geospatial view of IMP status, timelines, alerts
   # ======================================================================== #
-  STATUS_COLORS <- c("STOCKOUT" = "#B00020", "AT RISK" = "#E08A00", "OK" = "#2E7D32")
-
   # Per-site rollup of the projection, joined to coordinates + enrollment plan.
   site_map_df <- reactive({
     req(input$run_inventory > 0)
-    s <- projection()$summary
-    s$Site <- trimws(as.character(s$Site))
-    loc <- rv$site_loc
-    loc$center <- trimws(as.character(loc$center))
-    loc$protocol <- trimws(as.character(loc$protocol))
-
-    agg <- s %>%
-      group_by(Protocol, Site) %>%
-      summarise(
-        DUs          = n(),
-        Stockout_DUs = sum(Status == "STOCKOUT"),
-        AtRisk_DUs   = sum(Status == "AT RISK"),
-        Min_Days_Supply = suppressWarnings(min(Min_Days_Supply, na.rm = TRUE)),
-        Earliest_Stockout = {
-          v <- First_Stockout[!is.na(First_Stockout)]
-          if (length(v)) min(v) else as.Date(NA)
-        },
-        .groups = "drop") %>%
-      mutate(Status = ifelse(Stockout_DUs > 0, "STOCKOUT",
-                      ifelse(AtRisk_DUs > 0, "AT RISK", "OK")))
-
-    merge(agg, loc, by.x = c("Protocol", "Site"),
-          by.y = c("protocol", "center"), all.x = TRUE)
+    site_status_frame(projection()$summary, rv$site_loc)
   })
 
   output$map_protocol_ui <- renderUI({
@@ -374,27 +346,8 @@ shinyServer(function(input, output, session) {
     validate(need(nrow(d) > 0, "No mapped sites for this selection."))
 
     d$id <- paste(d$Protocol, d$Site, sep = "|")
-    d$Status <- factor(d$Status, levels = c("STOCKOUT", "AT RISK", "OK"))
-    esd <- ifelse(is.na(d$Earliest_Stockout), "—",
-                  as.character(as.Date(d$Earliest_Stockout, origin = "1970-01-01")))
-    d$hover <- sprintf(
-      "%s — site %s (%s)<br>Status: %s<br>Min days of supply: %s<br>Earliest stockout: %s<br>%d DU(s): %d stockout, %d at risk",
-      d$Protocol, d$Site, d$country_name, as.character(d$Status),
-      ifelse(is.finite(d$Min_Days_Supply), round(d$Min_Days_Supply, 1), "∞"),
-      esd, d$DUs, d$Stockout_DUs, d$AtRisk_DUs)
-
-    plot_geo(d, lat = ~latitude, lon = ~longitude, source = "site_map") %>%
-      add_markers(
-        color = ~Status, colors = STATUS_COLORS,
-        text = ~hover, hoverinfo = "text", customdata = ~id,
-        marker = list(size = 12, line = list(width = 1, color = "#333"))) %>%
-      layout(
-        geo = list(showland = TRUE, landcolor = "#f2f2f2",
-                   showcountries = TRUE, countrycolor = "#dcdcdc",
-                   showcoastlines = TRUE, coastlinecolor = "#cfcfcf",
-                   projection = list(type = "natural earth")),
-        legend = list(orientation = "h", x = 0, y = -0.05),
-        margin = list(l = 0, r = 0, t = 0, b = 0)) %>%
+    d$hover <- site_status_hover(d)
+    site_status_map(d) %>%
       event_register("plotly_click")
   })
 
@@ -426,8 +379,7 @@ shinyServer(function(input, output, session) {
         tags$td(style = "text-align:right",
                 ifelse(is.finite(s$Min_Days_Supply[i]), round(s$Min_Days_Supply[i], 1), "∞")),
         tags$td(ifelse(is.na(s$First_Stockout[i]), "—", as.character(s$First_Stockout[i]))),
-        tags$td(tags$span(style = sprintf("padding:2px 6px;border-radius:4px;color:#fff;background:%s",
-                                          STATUS_COLORS[s$Status[i]]), s$Status[i]))
+        tags$td(mc2_status_chip(s$Status[i]))
       )
     })
     cohorts <- if (nrow(enr)) paste(unique(enr$Cohort), collapse = ", ") else "—"
@@ -435,13 +387,12 @@ shinyServer(function(input, output, session) {
     window  <- if (nrow(enr)) sprintf("%s → %s", min(enr$Enroll_Start), max(enr$Enroll_End)) else "—"
 
     tagList(
-      tags$h4(sprintf("%s — Site %s", proto, site),
-              tags$span(style = sprintf("margin-left:8px;padding:2px 8px;border-radius:4px;color:#fff;background:%s",
-                                        STATUS_COLORS[worst]), worst)),
+      tags$h4(style = "font-size:1.125rem;display:flex;align-items:center;gap:8px;",
+              sprintf("%s — Site %s", proto, site), mc2_status_chip(worst)),
       tags$p(tags$b("Enrollment: "),
              sprintf("%s planned patient(s); cohorts: %s; window: %s",
                      ifelse(is.na(planned), "—", planned), cohorts, window)),
-      tags$table(class = "table table-condensed",
+      tags$table(class = "table table-sm",
         tags$thead(tags$tr(tags$th("DU"), tags$th("On hand"),
                            tags$th("Days supply"), tags$th("First stockout"), tags$th("Status"))),
         tags$tbody(du_rows))
@@ -456,11 +407,12 @@ shinyServer(function(input, output, session) {
       mutate(Date = as.Date(Date))
     validate(need(nrow(d) > 0, "No projection for this site."))
     ggplot(d, aes(Date, On_Hand_End, color = DU)) +
-      geom_line() +
-      geom_point(data = d %>% filter(Stockout_Units > 1e-9), color = "red", size = 1) +
-      labs(title = sprintf("On-hand inventory — %s site %s", parts[1], parts[2]),
+      geom_line(linewidth = .6) +
+      geom_point(data = d %>% filter(Stockout_Units > 1e-9), color = STATUS_FILL[["STOCKOUT"]], size = 1.2) +
+      scale_colour_mc2() +
+      labs(title = sprintf("On-hand inventory, %s site %s", parts[1], parts[2]),
            x = NULL, y = "Units on hand") +
-      theme_minimal() + theme(legend.position = "bottom") +
+      theme_mc2(base_size = 11) +
       guides(color = guide_legend(ncol = 1))
   }, width = 520, height = 300, res = 96)
 
@@ -475,10 +427,9 @@ shinyServer(function(input, output, session) {
       select(Protocol, Site, Country = country_name, Status,
              Min_Days_Supply, Earliest_Stockout, Stockout_DUs, AtRisk_DUs)
     datatable(d, rownames = FALSE,
-              caption = "Sites needing attention (worst first)",
+              caption = "Sites needing attention, worst first",
               options = list(dom = "t", scrollX = TRUE, pageLength = 20)) %>%
-      formatStyle("Status", backgroundColor = styleEqual(
-        c("STOCKOUT", "AT RISK"), c("#f8d7da", "#fff3cd")))
+      mc2_status_cells("Status")
   })
 
   # ======================================================================== #
@@ -502,15 +453,15 @@ shinyServer(function(input, output, session) {
   output$news_feed <- renderUI({
     nd <- news_data()
     if (is.null(nd)) return(helpText("Loading supply-chain news..."))
-    risk_col <- c(High = "#B00020", Medium = "#E08A00", Low = "#6c757d")
     items <- lapply(seq_len(nrow(nd)), function(i) {
       when <- if (!is.na(nd$PublishedAt[i]))
         format(nd$PublishedAt[i], "%b %d") else ""
-      tags$div(style = "padding:8px 4px;border-bottom:1px solid #eee;",
-        tags$span(style = sprintf("display:inline-block;min-width:58px;font-size:11px;font-weight:700;color:#fff;background:%s;border-radius:4px;padding:1px 6px;margin-right:6px;text-align:center",
-                                  risk_col[nd$Risk[i]]), nd$Risk[i]),
+      risk <- nd$Risk[i]
+      tags$div(class = "mc2-feed-item",
+        tags$div(style = "margin-bottom:4px;",
+                 mc2_chip(risk, RISK_FG[[risk]], RISK_BG[[risk]], min_width = "58px")),
         tags$a(href = nd$Link[i], target = "_blank", nd$Title[i]),
-        tags$div(style = "font-size:11px;color:#888;margin-top:2px;",
+        tags$div(class = "mc2-feed-meta",
                  paste(nd$Source[i], if (nzchar(when)) paste("·", when) else "")))
     })
     tagList(items)

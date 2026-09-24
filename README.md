@@ -1,4 +1,9 @@
-# IMP Supply Simulator
+<p align="center"><img src="www/favicon.svg" width="72" alt="MC²"/></p>
+
+<h1 align="center">MC² — Monte-Carlo clinical supply simulator</h1>
+
+MC² is a public rebuild, on synthetic data, of a clinical-supply simulator built in
+industry. It lives in this repository as `imp-supply-simulator`.
 
 **Monte-Carlo demand forecasting and inventory-stockout prediction for clinical
 trials.** Give it an enrollment plan and a dosing schedule for *any* protocol,
@@ -84,7 +89,7 @@ a path and genuinely needs one.
 
 ```r
 install.packages(c(
-  "shiny","shinyjs","shinythemes","shinycssloaders","DT","rhandsontable",
+  "shiny","shinyjs","bslib","shinycssloaders","DT","rhandsontable",
   "ggplot2","plotly","dplyr","tidyr","lubridate","stringr","readxl","readr",
   "xml2","httr"
 ))
@@ -126,19 +131,21 @@ mapped flexibly. `Program_Inputs.xlsx` is the input template.
 │   ├── titration.R                  # dose ladders, the vectorised visit engine, exact recursion
 │   ├── seeding.R                    # initial site stocking, sized off the ladder
 │   ├── inventory.R                  # SUPPLY: (s,S) projection, FEFO, expiry, resupply
-│   └── newsfeed.R                   # supply-chain news (Google News RSS + risk tagging)
+│   ├── newsfeed.R                   # supply-chain news (Google News RSS + risk tagging)
+│   └── brand.R                      # design tokens + themed builders (see docs/BRAND.md)
 ├── scripts/
 │   ├── run_simulation.R             # headless end-to-end runner
 │   ├── generate_sample_datasets.py  # (re)generates datasets/ deterministically
-│   └── make_demo_assets.R           # regenerates the README images
+│   └── make_demo_assets.R           # regenerates the README images and site/map.html
 ├── tests/
 │   ├── test_titration.R             # correctness gate: simulator vs closed form
 │   ├── test_seeding.R               # initial stocking, and the startup DU mix
 │   └── benchmark.R                  # runtime regression baseline
 ├── datasets/                        # SYNTHETIC sample data (safe, no real patient data)
 │   └── example_titration/           # a worked six-rung ladder (opt-in, see its README)
-├── docs/                            # MODEL_THEORY.md · METHODOLOGY.md · assets/
+├── docs/                            # MODEL_THEORY.md · METHODOLOGY.md · BRAND.md · assets/
 ├── site/                            # static showcase site (Netlify)
+├── www/                             # Shiny static files (favicon)
 └── Program_Inputs.xlsx              # input template
 ```
 
