@@ -7,9 +7,11 @@
 # starting on-hand as an arbitrary given (datasets/site_inventory.csv) with no
 # stated relationship to how many patients the site was about to see.
 #
-# seed_sites() derives it instead: stock every site for `Seed_Patients` patients
-# through their first `Seed_Visits` visits, and land that shipment BEFORE the
-# site's first patient visit.
+# seed_sites() derives it instead: stock every COHORT at a site for
+# `Seed_Patients` patients through their first `Seed_Visits` dispensing visits,
+# and land that shipment before the cohort's enrollment start. Enrollment is
+# visit 0: the patient is entered into the database and nothing is dispensed;
+# the first dispense is one cycle later.
 #
 # WHY THE LADDER MAKES THIS INTERESTING. Every patient starts on rung 1. So the
 # first few visits of a titrating arm are dominated by the LOW-dose DU, in a
@@ -29,17 +31,19 @@ suppressPackageStartupMessages({
 })
 
 SEEDING_DEFAULTS <- list(
-  Seed_Patients   = NA,    # patients to stock for; NA => the site's planned cohort
+  Seed_Patients   = NA,    # patients to stock for; NA => the whole cohort at that site
   Seed_Visits     = NA,    # visits of coverage; NA => enough to outlast one lead time
   Seed_Buffer     = 0.10,  # proportional over-ship on the initial shipment
-  Seed_Lead_Days  = 21,    # shipment lands this many days before the first visit
-  Seed_Shelf_Life = 730    # days from arrival to retest, for seeded lots
+  Seed_Lead_Days  = 21,    # shipment lands this many days before the cohort's visit 0
+  Seed_Shelf_Life = 730    # retest for a seed with no depot to ship from (see inventory.R)
 )
 
 # --------------------------------------------------------------------------- #
 # seed_sites()
-# Returns one row per (Protocol, Site, DU) initial shipment:
-#   Protocol, Site, DU, Arrive_Date, Qty, Expiry
+# Returns one row per (Protocol, Site, Cohort, DU) initial shipment:
+#   Protocol, Site, Cohort, DU, Arrive_Date, Planned_Qty, Qty, Expiry
+# Planned_Qty is what the cohort needs; Qty is what ships, which the inventory
+# walk tops up against stock the site already holds (Qty = Planned_Qty here).
 #
 # `Seed_Visits` defaults to the number of visits that spans one resupply lead
 # time, plus one — i.e. stock the site so it can survive until the first
@@ -56,18 +60,22 @@ seed_sites <- function(enrollment_df, ladders, params = list()) {
                "Enrollment plan")
 
   if (!"Country" %in% names(enrollment_df)) enrollment_df$Country <- NA_character_
+  if (!"Cohort" %in% names(enrollment_df))  enrollment_df$Cohort  <- "C1"
   enr <- enrollment_df %>%
     mutate(Protocol = trimws(as.character(Protocol)),
            Arm      = trimws(as.character(Arm)),
+           Cohort   = trimws(as.character(Cohort)),
            Site     = site_key(Country, Center),
            Patients = as.integer(round(as.numeric(Patients))),
            Enroll_Start = as_date_flex(Enroll_Start)) %>%
     filter(!is.na(Patients), Patients > 0, !is.na(Enroll_Start))
   if (nrow(enr) == 0) return(.empty_receipts())
 
-  # One planned cohort per Protocol x Site x Arm, and the date the site opens.
+  # One shipment per cohort at each site and arm, dated to that cohort's own
+  # enrollment start. Seeding the whole site once, off its first cohort, shipped
+  # every future cohort's stock years early and let it expire on the shelf.
   cohorts <- enr %>%
-    group_by(Protocol, Site, Arm) %>%
+    group_by(Protocol, Site, Arm, Cohort) %>%
     summarise(Cohort_Patients = sum(Patients),
               First_Visit     = min(Enroll_Start), .groups = "drop")
 
@@ -102,26 +110,29 @@ seed_sites <- function(enrollment_df, ladders, params = list()) {
     out[[length(out) + 1L]] <- data.frame(
       Protocol    = row$Protocol,
       Site        = row$Site,
+      Cohort      = row$Cohort,
       DU          = need$DU_Description,
       Arrive_Date = arrive,
-      Qty         = ceiling(n_seed * need$Units * (1 + p$Seed_Buffer)),
+      Planned_Qty = ceiling(n_seed * need$Units * (1 + p$Seed_Buffer)),
       Expiry      = arrive + p$Seed_Shelf_Life,
       stringsAsFactors = FALSE, row.names = NULL)
   }
 
   res <- .fast_bind(out)
   if (is.null(res)) return(.empty_receipts())
-  # One arm's kit can share a DU with another arm's at the same site.
+  # One arm's kit can share a DU with another arm's in the same cohort and site.
   res %>%
-    group_by(Protocol, Site, DU, Arrive_Date, Expiry) %>%
-    summarise(Qty = sum(Qty), .groups = "drop") %>%
-    select(Protocol, Site, DU, Arrive_Date, Qty, Expiry) %>%
+    group_by(Protocol, Site, Cohort, DU, Arrive_Date, Expiry) %>%
+    summarise(Planned_Qty = sum(Planned_Qty), .groups = "drop") %>%
+    mutate(Qty = Planned_Qty) %>%
+    select(Protocol, Site, Cohort, DU, Arrive_Date, Planned_Qty, Qty, Expiry) %>%
     as.data.frame(stringsAsFactors = FALSE)
 }
 
 .empty_receipts <- function()
-  data.frame(Protocol = character(0), Site = character(0), DU = character(0),
-             Arrive_Date = as.Date(character(0)), Qty = numeric(0),
+  data.frame(Protocol = character(0), Site = character(0), Cohort = character(0),
+             DU = character(0), Arrive_Date = as.Date(character(0)),
+             Planned_Qty = numeric(0), Qty = numeric(0),
              Expiry = as.Date(character(0)), stringsAsFactors = FALSE)
 
 # --------------------------------------------------------------------------- #

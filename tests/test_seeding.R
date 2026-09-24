@@ -221,5 +221,23 @@ cat("\n== 7. a site is a center in a country ==\n")
      identical(a$Units, b$Units) && identical(a$Visit_Date, b$Visit_Date))
 }
 
+cat("\n== 8. every cohort at a site gets its own seed ==\n")
+{
+  lad <- build_ladders(dosing6, tspec)
+  plan <- rbind(enr("P1", 6L, start = as.Date("2024-06-01")),
+                enr("P1", 20L, start = as.Date("2026-03-01")))
+  plan$Cohort <- c("Dose-finding", "Expansion")
+  rx <- seed_sites(plan, lad, list(Seed_Patients = NA))
+  ok("two cohorts at one site, two shipments per DU",
+     nrow(rx) == 4 && setequal(unique(rx$Cohort), plan$Cohort), sprintf("%d rows", nrow(rx)))
+  ok("each dated to its own cohort's visit 0, less the seed lead",
+     setequal(unique(rx$Arrive_Date), plan$Enroll_Start - 21))
+  ok("each sized for its own cohort",
+     all(rx$Planned_Qty[rx$Cohort == "Expansion"] > rx$Planned_Qty[rx$Cohort == "Dose-finding"]))
+  ok("the early cohort is no longer shipped the later cohort's stock",
+     sum(rx$Planned_Qty[rx$Cohort == "Dose-finding"]) ==
+       sum(seed_sites(plan[1, ], lad, list())$Planned_Qty))
+}
+
 cat(sprintf("\n%d passed, %d failed\n", .pass, .fail))
 quit(status = if (.fail > 0L) 1L else 0L)
