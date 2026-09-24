@@ -302,3 +302,29 @@ engine commit hash.
   protocol under both arms instead of randomising. The harness changed to run
   protocols one at a time (`9d0e8ce`), so this version is frozen there. The
   earlier texts are in the git history of this file.
+
+---
+
+## 13. Power, computed before the confirmatory run (2026-09-24)
+
+From the paired pilot at `9d0e8ce` (`scripts/power_pilot.R`, 20 replications of
+both arms, 18 protocols) and `scripts/power_curve.R`:
+
+| | |
+|---|---|
+| Mean within-protocol difference, rung − trailing | fixed dose −0.092, titrating −0.588 |
+| Between-protocol SD of the difference | 0.315; 0.190 within strata |
+| Within-protocol SD per replication | 0.055 |
+| Replications, by the §8 rule | R = 50 (replication noise 0.2% of the variance) |
+| Power for the 5pp MDE at 18 protocols, stratified | 0.183 |
+| Protocols needed for 80% power, stratified | 116 |
+| Smallest effect detectable at 18 protocols, stratified | 13.5pp |
+
+**The §8 contingency applies.** The frame is expanded to 116 protocols with
+`scripts/build_frame.R ~/reins/app/data datasets/frame_expanded 116`: 18 real
+and 98 synthetic protocols, 53 of them titrating, 4,471 sites, 218,313 planned
+patients. The confirmatory run uses it (`EXP_FRAME=datasets/frame_expanded`)
+with R = 50. One timing replication (rep_seed 9999, outside the confirmatory
+seeds) took 8.8 minutes on 6 workers, so the run is about 7.5 hours for the two
+arms, plus the oracle ceiling and the sensitivity runs on 10 replications. The
+chart is `docs/assets/power_curve.png`.
