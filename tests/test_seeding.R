@@ -166,5 +166,60 @@ cat("\n== 6. a shipment due before the as-of date is not lost ==\n")
   ok("and is not double-counted as a receipt", sum(late$daily$Received) == 0)
 }
 
+cat("\n== 7. a site is a center in a country ==\n")
+{
+  lad <- build_ladders(dosing6, tspec)
+  two <- rbind(enr("P1", 6L, site = "1004"), enr("P1", 4L, site = "1004"))
+  two$Country <- c("Mexico", "USA")
+  rx <- seed_sites(two, lad, list(Seed_Patients = 99L))
+  ok("one center number in two countries is two sites",
+     setequal(unique(rx$Site), c("1004 \u00b7 Mexico", "1004 \u00b7 USA")),
+     paste(unique(rx$Site), collapse = " | "))
+  ok("each is seeded for its own patients",
+     all(rx$Qty[rx$Site == "1004 \u00b7 Mexico"] > rx$Qty[rx$Site == "1004 \u00b7 USA"]))
+
+  set.seed(71)
+  v <- simulate_visits(simulate_enrollment(two, 1L), dosing6, visit_window = 0,
+                       simulation_end_date = as.Date("2025-06-01"), titration = tspec)
+  d <- compute_demand(v)
+  inv <- data.frame(protocol_id = "P1", center_number = "1004",
+                    country_name = c("Mexico", "USA"), du_description = "DU-LOW",
+                    site_inventory_count = c(500, 7), retest_date_inv = "2026-01-01",
+                    stringsAsFactors = FALSE)
+  pr <- project_inventory(d, inv, NULL, list(start_date = as.Date("2024-05-01"),
+            horizon_end = as.Date("2025-06-01"), enable_resupply = FALSE))
+  st <- pr$summary[pr$summary$DU == "DU-LOW", ]
+  ok("and holds its own stock pool",
+     st$Start_On_Hand[st$Site == "1004 \u00b7 Mexico"] == 500 &&
+     st$Start_On_Hand[st$Site == "1004 \u00b7 USA"] == 7)
+
+  bare <- inv[, setdiff(names(inv), "country_name")]
+  err <- tryCatch({ project_inventory(d, bare, NULL, list(start_date = as.Date("2024-05-01"),
+                      horizon_end = as.Date("2025-06-01"))); "" },
+                  error = function(e) conditionMessage(e))
+  ok("a file with no country column stops where a center is ambiguous",
+     grepl("more than one country", err) && grepl("1004", err), err)
+
+  one <- enr("P1", 6L)
+  set.seed(72)
+  d1 <- compute_demand(simulate_visits(simulate_enrollment(one, 1L), dosing6,
+          visit_window = 0, simulation_end_date = as.Date("2025-06-01"), titration = tspec))
+  inv1 <- data.frame(protocol_id = "P1", center_number = "1001", du_description = "DU-LOW",
+                     site_inventory_count = 40, retest_date_inv = "2026-01-01")
+  pr1 <- project_inventory(d1, inv1, NULL, list(start_date = as.Date("2024-05-01"),
+           horizon_end = as.Date("2025-06-01"), enable_resupply = FALSE))
+  ok("...and resolves by center where it is not",
+     pr1$summary$Start_On_Hand[pr1$summary$Site == "1001 \u00b7 USA" &
+                               pr1$summary$DU == "DU-LOW"] == 40)
+
+  noc <- one; noc$Country <- ""
+  set.seed(73); a <- compute_demand(simulate_visits(simulate_enrollment(one, 1L), dosing6,
+          visit_window = 3, simulation_end_date = as.Date("2025-06-01"), titration = tspec))
+  set.seed(73); b <- compute_demand(simulate_visits(simulate_enrollment(noc, 1L), dosing6,
+          visit_window = 3, simulation_end_date = as.Date("2025-06-01"), titration = tspec))
+  ok("the site key draws no random numbers: same seed, same demand",
+     identical(a$Units, b$Units) && identical(a$Visit_Date, b$Visit_Date))
+}
+
 cat(sprintf("\n%d passed, %d failed\n", .pass, .fail))
 quit(status = if (.fail > 0L) 1L else 0L)

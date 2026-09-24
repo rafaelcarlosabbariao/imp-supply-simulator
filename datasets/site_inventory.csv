@@ -11,17 +11,21 @@ TRIAL-118,1003,Israel,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released
 TRIAL-118,1003,Israel,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,435,2024-06-29,TRIALOT1010
 TRIAL-118,1003,Israel,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,11,2024-09-27,TRIALOT1011
 TRIAL-118,1003,Israel,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,1,2024-09-27,TRIALOT1012
-TRIAL-118,1004,Mexico,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,27,2024-06-29,TRIALOT1013
-TRIAL-118,1004,Mexico,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,161,2024-09-27,TRIALOT1014
-TRIAL-118,1004,Mexico,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,7,2024-09-27,TRIALOT1015
-TRIAL-118,1004,Mexico,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,1,2024-06-29,TRIALOT1016
-TRIAL-118,1005,Argentina,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,25,2025-06-24,TRIALOT1017
-TRIAL-118,1005,Argentina,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,50,2024-09-27,TRIALOT1018
-TRIAL-118,1005,Argentina,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,4,2024-04-30,TRIALOT1019
-TRIAL-118,1005,Argentina,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,1,2024-06-29,TRIALOT1020
-TRIAL-201,1001,USA,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,348,2024-12-31,TRIALOT1021
-TRIAL-201,1001,USA,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,225,2025-06-24,TRIALOT1022
-TRIAL-201,1002,Korea,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,73,2024-12-31,TRIALOT1023
-TRIAL-201,1002,Korea,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,86,2025-06-24,TRIALOT1024
-TRIAL-201,1003,Japan,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,12,2025-06-24,TRIALOT1025
-TRIAL-201,1003,Japan,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,78,2024-09-27,TRIALOT1026
+TRIAL-118,1004,Mexico,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,21,2024-06-29,TRIALOT1013
+TRIAL-118,1004,Mexico,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,131,2024-09-27,TRIALOT1014
+TRIAL-118,1004,Mexico,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,8,2024-04-30,TRIALOT1015
+TRIAL-118,1004,Mexico,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,1,2024-04-30,TRIALOT1016
+TRIAL-118,1004,USA,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,23,2024-09-27,TRIALOT1017
+TRIAL-118,1004,USA,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,18,2024-09-27,TRIALOT1018
+TRIAL-118,1004,USA,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,8,2024-12-31,TRIALOT1019
+TRIAL-118,1004,USA,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,1,2024-06-29,TRIALOT1020
+TRIAL-118,1005,Argentina,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,23,2024-12-31,TRIALOT1021
+TRIAL-118,1005,Argentina,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,37,2025-06-24,TRIALOT1022
+TRIAL-118,1005,Argentina,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,5,2024-04-30,TRIALOT1023
+TRIAL-118,1005,Argentina,Reference Drug Syrup 2 mg/mL Bottle (118 mL/bottle),Inventory_Available,Released,1,2025-06-24,TRIALOT1024
+TRIAL-201,1001,USA,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,333,2024-09-27,TRIALOT1025
+TRIAL-201,1001,USA,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,90,2025-06-24,TRIALOT1026
+TRIAL-201,1002,Korea,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,12,2024-12-31,TRIALOT1027
+TRIAL-201,1002,Korea,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,103,2024-09-27,TRIALOT1028
+TRIAL-201,1003,Japan,Diluent for Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,66,2024-12-31,TRIALOT1029
+TRIAL-201,1003,Japan,Compound-A 15 mg/vial (1x/carton),Inventory_Available,Released,81,2024-12-31,TRIALOT1030

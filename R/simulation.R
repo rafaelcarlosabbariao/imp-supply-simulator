@@ -48,6 +48,31 @@ require_cols <- function(df, cols, what) {
   invisible(TRUE)
 }
 
+# ---- site identity ---------------------------------------------------------- #
+# A site is a CENTER IN A COUNTRY. Center numbers are not unique across
+# countries -- TRIAL-118 runs a center 1004 in Mexico and another in the USA --
+# so every join on a site uses this key and never the center number alone.
+# Format: "1004 \u00b7 Mexico". A row with no country keys on the center alone.
+SITE_SEP <- " \u00b7 "
+
+site_key <- function(country, center) {
+  center  <- trimws(as.character(center))
+  country <- trimws(as.character(country))
+  ifelse(is.na(country) | country == "", center, paste0(center, SITE_SEP, country))
+}
+
+site_center <- function(key) {
+  key <- as.character(key)
+  i <- regexpr(SITE_SEP, key, fixed = TRUE)
+  ifelse(i > 0, substr(key, 1, i - 1), key)
+}
+
+site_country <- function(key) {
+  key <- as.character(key)
+  i <- regexpr(SITE_SEP, key, fixed = TRUE)
+  ifelse(i > 0, substring(key, i + nchar(SITE_SEP)), NA_character_)
+}
+
 # Parse a date column that may arrive as Date, POSIXct, or "yyyy-mm-dd" string.
 as_date_flex <- function(x) {
   if (inherits(x, "Date")) return(x)
@@ -146,8 +171,9 @@ simulate_enrollment <- function(enrollment_df, num_simulations = 1) {
         Protocol   = r$Protocol,
         Cohort     = r$Cohort,
         Country    = r$Country,
-        Site       = r$Center,
-        SSID       = paste0(r$Center, 1000 + seq_len(patients)),
+        Center     = r$Center,
+        Site       = site_key(r$Country, r$Center),
+        SSID       = NA_character_,
         TG         = r$Arm,
         Visit_Num  = 0L,
         Visit_Desc = "Enrollment",
@@ -170,7 +196,8 @@ simulate_enrollment <- function(enrollment_df, num_simulations = 1) {
   out <- out[order(out$Visit_Date), ]
   out <- out %>%
     group_by(Site, Trial) %>%
-    mutate(SSID = paste0(Site, 1000 + row_number())) %>%
+    mutate(SSID = paste0(gsub(SITE_SEP, "-", Site, fixed = TRUE), "-",
+                         1000 + row_number())) %>%
     ungroup()
   rownames(out) <- NULL
   out
@@ -263,6 +290,7 @@ simulate_visits <- function(patient_df, dosing_long, visit_window = 3,
         Protocol   = patient_df$Protocol[gi],
         Cohort     = patient_df$Cohort[gi],
         Country    = patient_df$Country[gi],
+        Center     = patient_df$Center[gi],
         Site       = patient_df$Site[gi],
         SSID       = patient_df$SSID[gi],
         TG         = lad$arm,

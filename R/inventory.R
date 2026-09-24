@@ -34,7 +34,7 @@ suppressPackageStartupMessages({
   if (length(hit)) df[[hit[1]]] else rep(default, nrow(df))
 }
 
-.map_inventory <- function(df, location_default = "SITE") {
+.map_inventory <- function(df, location_default = "SITE", key_sites = FALSE) {
   if (is.null(df) || nrow(df) == 0)
     return(data.frame(Protocol = character(), Location = character(),
                       DU = character(), Qty = numeric(),
@@ -51,9 +51,44 @@ suppressPackageStartupMessages({
     stringsAsFactors = FALSE
   )
   out$Location <- trimws(out$Location)
+  # Site files key a row by center AND country (see site_key()). A depot row
+  # keeps its depot name; its country column names a region, not a site.
+  if (key_sites) {
+    ctry <- .first_present(df, c("Country", "country", "country_name"))
+    out$Location <- site_key(ctry, out$Location)
+  }
   out$DU <- trimws(out$DU)
   out$Qty[is.na(out$Qty)] <- 0
   out[out$Qty > 0 & !is.na(out$DU) & out$DU != "", , drop = FALSE]
+}
+
+# --------------------------------------------------------------------------- #
+# .resolve_site_keys()
+# A file with no country column carries bare center numbers. Map each to the
+# one known site key with that center in its protocol; stop, naming them, where
+# a center exists in more than one country, since picking one would silently
+# merge two sites' stock. A center with no known site is kept as it is.
+# --------------------------------------------------------------------------- #
+.resolve_site_keys <- function(protocol, location, known, what = "Site inventory") {
+  if (!length(location)) return(location)
+  known <- unique(known[c("Protocol", "Site")])
+  bare  <- !grepl(SITE_SEP, location, fixed = TRUE)
+  if (!any(bare)) return(location)
+  kc <- site_center(known$Site)
+  ambiguous <- character(0)
+  for (i in which(bare)) {
+    hit <- known$Site[known$Protocol == protocol[i] & kc == location[i]]
+    if (length(hit) == 1L) location[i] <- hit
+    else if (length(hit) > 1L)
+      ambiguous <- c(ambiguous, sprintf("%s center %s (%s)", protocol[i], location[i],
+                                        paste(site_country(hit), collapse = ", ")))
+  }
+  if (length(ambiguous))
+    stop(sprintf(paste0("%s has no country column, and these centers exist in more ",
+                        "than one country: %s. Add a country column (country_name or ",
+                        "Country) so each row reaches the right site."),
+                 what, paste(unique(ambiguous), collapse = "; ")), call. = FALSE)
+  location
 }
 
 # --------------------------------------------------------------------------- #
@@ -138,7 +173,7 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
     summarise(Units = sum(Units, na.rm = TRUE), .groups = "drop") %>%
     mutate(Units = (Units / n_trials) * (1 + p$unplanned_visit_pct))
 
-  site_inv  <- .map_inventory(site_inv_df, "SITE")
+  site_inv  <- .map_inventory(site_inv_df, "SITE", key_sites = TRUE)
   depot_inv <- .map_inventory(depot_inv_df, "DEPOT")
 
   # Initial site stocking. Sites are activated and shipped BEFORE their first
@@ -157,6 +192,13 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
     init_rx <- init_rx[!is.na(init_rx$Qty) & init_rx$Qty > 0, , drop = FALSE]
     if (nrow(init_rx) == 0) init_rx <- NULL
   }
+
+  # Sites known from the plan: every site with demand or a seed shipment.
+  known_sites <- unique(rbind(
+    data.frame(Protocol = demand$Protocol, Site = demand$Site, stringsAsFactors = FALSE),
+    if (!is.null(init_rx)) data.frame(Protocol = init_rx$Protocol, Site = init_rx$Site,
+                                      stringsAsFactors = FALSE)))
+  site_inv$Location <- .resolve_site_keys(site_inv$Protocol, site_inv$Location, known_sites)
 
   # `start_date` is the planning "as-of" date: on-hand inventory is current as
   # of this day, and only demand on/after it is projected against that stock

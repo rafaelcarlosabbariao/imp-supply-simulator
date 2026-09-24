@@ -119,10 +119,12 @@ def lot_id(protocol, i):
     return f"{protocol[:4]}LOT{1000 + i}"
 
 
-# Distinct (protocol, center, country) sites, and (protocol, arm, DU, qty)
+# Distinct (protocol, center, country) sites, and (protocol, arm, DU, qty).
+# A site is a center IN A COUNTRY: TRIAL-118 runs a center 1004 in Mexico and
+# another in the USA, and each needs its own inventory and map position.
 sites = {}
 for r in enrollment:
-    key = (r["Protocol"], r["Center"])
+    key = (r["Protocol"], r["Center"], r["Country"])
     if key not in sites:
         sites[key] = r["Country"]
 
@@ -155,7 +157,7 @@ for p in PROTOCOLS:
     m = meta_for(p)
     p_enr = [r for r in enrollment if r["Protocol"] == p]
     countries = sorted({r["Country"] for r in p_enr})
-    centers = sorted({r["Center"] for r in p_enr})
+    centers = sorted({(r["Center"], r["Country"]) for r in p_enr})
     starts = [parse_d(r["Enroll_Start"]) for r in p_enr]
     ends = [parse_d(r["Enroll_End"]) for r in p_enr]
     total_planned = sum(int(float(r["Patients"])) for r in p_enr)
@@ -269,7 +271,7 @@ AS_OF = date(2024, 1, 1)
 # approach, not by day-one stock -- otherwise stock just expires on the shelf.
 NEARTERM_CUTOFF = AS_OF + timedelta(days=120)
 
-def daily_rate(protocol, center, du):
+def daily_rate(protocol, center, country, du):
     rate = 0.0
     for d in dosing_long:
         if d["protocol"] != protocol or d["du"] != du:
@@ -278,7 +280,7 @@ def daily_rate(protocol, center, du):
             int(float(r["Patients"]))
             for r in enrollment
             if r["Protocol"] == protocol and r["Center"] == center
-            and r["Arm"] == d["arm"]
+            and r["Country"] == country and r["Arm"] == d["arm"]
             and parse_d(r["Enroll_Start"]) <= NEARTERM_CUTOFF
         )
         if pts and d["cycle_length"] > 0:
@@ -292,10 +294,10 @@ def daily_rate(protocol, center, du):
 # --------------------------------------------------------------------------- #
 site_inv_rows = []
 lot_counter = 0
-for (p, center), country in sorted(sites.items()):
+for (p, center, _c), country in sorted(sites.items()):
     for du in dus_by_protocol.get(p, []):
         lot_counter += 1
-        rate = daily_rate(p, center, du)
+        rate = daily_rate(p, center, country, du)
         qtys = [d["qty"] for d in dosing_long if d["protocol"] == p and d["du"] == du]
         per_cycle = max(qtys) if qtys else 1
 
@@ -345,7 +347,7 @@ def program_units(protocol, du):
 
 depot_inv_rows = []
 for p in PROTOCOLS:
-    p_countries = sorted({c for (pp, _cn), c in sites.items() if pp == p})
+    p_countries = sorted({c for (pp, _cn, _c), c in sites.items() if pp == p})
     depots = sorted({DEPOTS.get(c.strip(), "Global Depot") for c in p_countries})
     for depot in depots:
         for du in dus_by_protocol.get(p, []):
@@ -371,7 +373,7 @@ write_csv("depot_inventory.csv", list(depot_inv_rows[0].keys()), depot_inv_rows)
 # --------------------------------------------------------------------------- #
 order_rows = []
 order_lot = 0
-for (p, center), country in sorted(sites.items()):
+for (p, center, _c), country in sorted(sites.items()):
     for du in dus_by_protocol.get(p, []):
         # 0-3 historical orders per site/DU
         for _ in range(random.randint(0, 3)):
@@ -410,7 +412,7 @@ US_CITIES = [
 ]
 
 loc_rows = []
-for (p, center), country in sorted(sites.items()):
+for (p, center, _c), country in sorted(sites.items()):
     cc = country.strip()
     if cc == "USA":
         # deterministic city pick by center number

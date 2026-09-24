@@ -368,7 +368,7 @@ shinyServer(function(input, output, session) {
       filter(Protocol == proto, trimws(as.character(Site)) == site)
     enr <- rv$enrollment_cur
     enr <- enr[trimws(as.character(enr$Protocol)) == proto &
-               trimws(as.character(enr$Center)) == site, , drop = FALSE]
+               site_key(enr$Country, enr$Center) == site, , drop = FALSE]
 
     worst <- if (any(s$Status == "STOCKOUT")) "STOCKOUT" else
              if (any(s$Status == "AT RISK")) "AT RISK" else "OK"

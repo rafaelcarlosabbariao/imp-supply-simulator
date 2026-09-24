@@ -277,8 +277,8 @@ site_status_map <- function(d, source = "site_map") {
 site_status_frame <- function(summary, loc) {
   s <- summary
   s$Site <- trimws(as.character(s$Site))
-  loc$center <- trimws(as.character(loc$center))
   loc$protocol <- trimws(as.character(loc$protocol))
+  loc$Site <- site_key(loc$country_name, loc$center)
   agg <- s |>
     dplyr::group_by(Protocol, Site) |>
     dplyr::summarise(
@@ -293,15 +293,15 @@ site_status_frame <- function(summary, loc) {
       .groups = "drop") |>
     dplyr::mutate(Status = ifelse(Stockout_DUs > 0, "STOCKOUT",
                           ifelse(AtRisk_DUs > 0, "AT RISK", "OK")))
-  merge(agg, loc, by.x = c("Protocol", "Site"), by.y = c("protocol", "center"), all.x = TRUE)
+  merge(agg, loc, by.x = c("Protocol", "Site"), by.y = c("protocol", "Site"), all.x = TRUE)
 }
 
 site_status_hover <- function(d) {
   esd <- ifelse(is.na(d$Earliest_Stockout), "—",
                 as.character(as.Date(d$Earliest_Stockout, origin = "1970-01-01")))
   sprintf(
-    "<b>%s — site %s</b> (%s)<br>Status: %s<br>Min days of supply: %s<br>Earliest stockout: %s<br>%d DU(s): %d stockout, %d at risk",
-    d$Protocol, d$Site, d$country_name, as.character(d$Status),
+    "<b>%s — site %s</b><br>Status: %s<br>Min days of supply: %s<br>Earliest stockout: %s<br>%d DU(s): %d stockout, %d at risk",
+    d$Protocol, d$Site, as.character(d$Status),
     ifelse(is.finite(d$Min_Days_Supply), round(d$Min_Days_Supply, 1), "∞"),
     esd, d$DUs, d$Stockout_DUs, d$AtRisk_DUs)
 }

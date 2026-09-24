@@ -55,10 +55,11 @@ seed_sites <- function(enrollment_df, ladders, params = list()) {
                c("Protocol", "Arm", "Patients", "Enroll_Start", "Center"),
                "Enrollment plan")
 
+  if (!"Country" %in% names(enrollment_df)) enrollment_df$Country <- NA_character_
   enr <- enrollment_df %>%
     mutate(Protocol = trimws(as.character(Protocol)),
            Arm      = trimws(as.character(Arm)),
-           Site     = trimws(as.character(Center)),
+           Site     = site_key(Country, Center),
            Patients = as.integer(round(as.numeric(Patients))),
            Enroll_Start = as_date_flex(Enroll_Start)) %>%
     filter(!is.na(Patients), Patients > 0, !is.na(Enroll_Start))
