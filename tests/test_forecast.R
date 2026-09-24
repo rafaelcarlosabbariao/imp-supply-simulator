@@ -262,5 +262,26 @@ cat("\n== 9. the rung forecast in the walk ==\n")
      min(pr$daily$Date[pr$daily$Reorder_Qty > 0]) < min(tr$daily$Date[tr$daily$Reorder_Qty > 0]))
 }
 
+cat("\n== 10. stock about to expire is not counted as cover ==\n")
+{
+  # 600 units on hand, far above the reorder point, that expire on 2024-07-01.
+  # Without the rule the site counts them until they expire, then waits a lead time.
+  soon <- transform(stock, site_inventory_count = 600, retest_date_inv = "2024-07-01")
+  pr <- run(d, soon, depot, modifyList(pars, list(start_date = as.Date("2024-06-01"))))
+  first <- min(pr$daily$Date[pr$daily$Reorder_Qty > 0])
+  ok("the site reorders before its stock expires, not after",
+     first < as.Date("2024-07-01"), as.character(first))
+  ok("and does not stock out when the lot expires",
+     sum(pr$daily$Stockout_Units[pr$daily$Date >= as.Date("2024-07-01") &
+                                 pr$daily$Date < as.Date("2024-08-01")]) == 0)
+  near <- data.frame(protocol = "P1", depot_name = "D1", du_description = "DRUG",
+                     depot_inventory_count = c(1e6, 1e6),
+                     retest_date_inv = c("2024-07-10", "2030-01-01"))
+  pr2 <- run(d, stock, near, pars)
+  got <- pr2$shipments$Arrival[pr2$shipments$Source == "reorder"][1]
+  ok("the depot skips a lot that would land with under 30 days left",
+     sum(pr2$daily$Expired) == 0, sprintf("expired %.0f", sum(pr2$daily$Expired)))
+}
+
 cat(sprintf("\n%d passed, %d failed\n", .pass, .fail))
 quit(status = if (.fail > 0L) 1L else 0L)

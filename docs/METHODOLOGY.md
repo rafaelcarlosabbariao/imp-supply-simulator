@@ -253,8 +253,15 @@ rate             = mean daily forecast demand over the (lead + target) window
 safety_stock     = safety_stock_days × rate
 reorder_point    = lead_demand + safety_stock            # in inventory-position units
 order_up_to (S)  = (lead_demand + coverage_demand + safety_stock) × (1 + oversupply_pct)
-inventory_position = on_hand + on_order
+inventory_position = usable on_hand + usable on_order
 ```
+
+*Usable* leaves out any lot that expires before an order placed today could
+land (today + the planning lead time). Until 2026-09-24 the position counted
+every lot until the day it expired, so a site holding a lot above the reorder
+point ordered nothing until the lot expired and then waited a lead time with
+nothing on the shelf. The depot likewise ships a lot only if it will have at
+least `min_shelf_life_days` (30) left when it lands.
 
 If `inventory_position < reorder_point`, an order for `ceil(S − position)` units
 is placed. It is pulled from the depot pool (FEFO, respecting depot lot expiry),

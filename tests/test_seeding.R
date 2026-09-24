@@ -254,10 +254,10 @@ cat("\n== 9. seeds ship from the depot, top up, and respect the as-of date ==\n"
                stringsAsFactors = FALSE)
   none <- data.frame(Protocol = character(0), Location = character(0), DU = character(0),
                      Qty = numeric(0), Expiry = as.Date(character(0)))
-  run <- function(site_inv, dep, asof, opening = NULL, resupply = FALSE)
+  run <- function(site_inv, dep, asof, opening = NULL, resupply = FALSE, shelf = 30)
     suppressWarnings(suppressMessages(project_inventory(d, site_inv, dep,
       list(start_date = as.Date(asof), horizon_end = as.Date("2025-06-01"),
-           enable_resupply = resupply),
+           enable_resupply = resupply, min_shelf_life_days = shelf),
       initial_receipts = rx, opening = opening)))
 
   # 3. drawn from the depot, with the depot lot's own expiry
@@ -269,8 +269,12 @@ cat("\n== 9. seeds ship from the depot, top up, and respect the as-of date ==\n"
      sh$Qty[sh$DU == "DU-LOW"] == 5 &&
        sum(short$daily$Seed_Short[short$daily$DU == "DU-LOW"]) == plan[["DU-LOW"]] - 5)
   ok("the depot lot's expiry travels with it",
-     { x <- run(none, depot(c("DU-BG" = 1000, "DU-LOW" = 1000), retest = "2024-05-20"), "2024-04-01")
+     { x <- run(none, depot(c("DU-BG" = 1000, "DU-LOW" = 1000), retest = "2024-05-20"),
+                "2024-04-01", shelf = 0)
        sum(x$daily$Expired) == sum(plan) })
+  ok("a lot with less than the minimum shelf life left on arrival is not shipped",
+     { x <- run(none, depot(c("DU-BG" = 1000, "DU-LOW" = 1000), retest = "2024-05-20"), "2024-04-01")
+       sum(x$daily$Seed_Shipped) == 0 && sum(x$daily$Seed_Short) == sum(plan) })
 
   # 4. top-up
   hold <- data.frame(protocol_id = "P1", center_number = "1001", country_name = "USA",

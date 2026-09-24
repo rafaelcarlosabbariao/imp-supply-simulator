@@ -106,7 +106,16 @@ suppressPackageStartupMessages({
   list(pool = list(q = p$q[!dead], e = p$e[!dead]), expired = sum(p$q[dead]))
 }
 
-.pool_consume <- function(p, qty) {              # FEFO draw of `qty` units
+.pool_consume <- function(p, qty, usable_after = -Inf) {   # FEFO draw of `qty` units
+  # Only lots expiring after `usable_after` are drawn; the rest stay put.
+  if (is.finite(usable_after) && length(p$q)) {
+    ok <- is.na(p$e) | p$e > usable_after
+    if (!all(ok)) {
+      r <- .pool_consume(list(q = p$q[ok], e = p$e[ok]), qty)
+      r$pool <- list(q = c(r$pool$q, p$q[!ok]), e = c(r$pool$e, p$e[!ok]))
+      return(r)
+    }
+  }
   nL <- length(p$q)
   if (nL == 0 || qty <= 0)
     return(list(pool = p, consumed = 0, shortfall = max(0, qty),
@@ -172,6 +181,7 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
     start_date          = NULL, # default: earliest demand date
     horizon_end         = NULL, # default: latest demand date
     enable_resupply     = TRUE, # if FALSE, run down starting stock only
+    min_shelf_life_days = 30,   # the depot ships a lot only with this long left on arrival
     trailing_window_days = 60   # lookback for forecast = "trailing"
   ), params)
 
@@ -458,7 +468,8 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
             want <- max(0, ceiling(st$sd_plan[k] - position))
             shipped <- 0; short <- 0
             if (want > 0 && has_depot) {
-              pull <- .pool_consume(depot_pool, want)
+              pull <- .pool_consume(depot_pool, want,
+                                    today_n + st$lt + p$min_shelf_life_days)
               depot_pool <- pull$pool
               shipped <- pull$consumed; short <- pull$shortfall
               m <- length(pull$taken_q)
@@ -492,6 +503,14 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
         # surprise: the order is planned on the normal lane and lands late.
         lt_plan <- if (is.null(st$dis)) st$lt
                    else st$lt + .delay_for(st$dis, today_n + st$lt, known_only = TRUE)
+        # Stock that expires before an order placed today could land is not
+        # counted: counting it let a site sit on a lot until the day it
+        # expired and only then reorder, a lead time too late.
+        horizon_n <- today_n + lt_plan
+        usable <- if (length(st$pool$q))
+          sum(st$pool$q[is.na(st$pool$e) | st$pool$e > horizon_n]) else 0
+        usable <- usable + if (length(st$it_q))
+          sum(st$it_q[is.na(st$it_e) | st$it_e > horizon_n]) else 0
         fc <- .forecast_window(forecast, st, ti, nd, lt_plan, tg, p)
         if (is.null(fc)) fc <- .forecast_window("trailing", st, ti, nd, lt_plan, tg, p)
         rate            <- fc$rate
@@ -501,11 +520,12 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
         reorder_point <- lead_demand + ss_units
         S_units       <- (lead_demand + coverage_demand + ss_units) * (1 + p$oversupply_pct)
         if (p$enable_resupply && rate > 0) {
-          position <- on_hand_end + on_order
+          position <- usable
           if (position < reorder_point) {
             want <- ceiling(S_units - position)
             if (want > 0) {
-              pull <- .pool_consume(depot_pool, want)
+              pull <- .pool_consume(depot_pool, want,
+                                    today_n + st$lt + p$min_shelf_life_days)
               depot_pool <- pull$pool
               reorder_qty <- pull$consumed
               depot_short <- pull$shortfall

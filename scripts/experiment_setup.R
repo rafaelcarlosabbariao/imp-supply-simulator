@@ -56,8 +56,17 @@ depot <- expected_demand(ladders) %>%
   summarise(per_patient = sum(E_Units), .groups = "drop") %>%
   left_join(pat, by = c("Protocol", "Arm")) %>%
   group_by(Protocol, DU = DU_Description) %>%
-  summarise(Qty = ceiling(sum(per_patient * N) * DEPOT_FACTOR), .groups = "drop") %>%
-  transmute(Protocol, Location = "DEPOT", DU, Qty, Expiry = HORIZON + 365)
+  summarise(Qty = ceiling(sum(per_patient * N) * DEPOT_FACTOR), .groups = "drop")
+
+# Four equal lots per DU, expiring 24, 36, 48 and 60 months after the as-of
+# date (EXPERIMENT.md §4). One lot expiring after the horizon left nothing able
+# to expire, and Total_Expired was 0 in every run.
+DEPOT_LOT_MONTHS <- c(24, 36, 48, 60)
+depot <- depot %>%
+  tidyr::crossing(Months = DEPOT_LOT_MONTHS) %>%
+  transmute(Protocol, Location = "DEPOT", DU,
+            Qty = ceiling(Qty / length(DEPOT_LOT_MONTHS)),
+            Expiry = seq(AS_OF, by = "month", length.out = max(DEPOT_LOT_MONTHS) + 1)[Months + 1])
 
 # Guard: every DU the ladders can demand must have depot stock. Without this
 # the failure above is silent and looks like a result.
@@ -67,8 +76,9 @@ if (length(gap))
   stop(sprintf("%d DU(s) have no depot stock: %s", length(gap),
                paste(head(gap, 5), collapse = ", ")), call. = FALSE)
 
-cat(sprintf("depot: %d DU lines, %s units (%.0fx expected demand)\n",
-            nrow(depot), format(sum(depot$Qty), big.mark = ","), DEPOT_FACTOR))
+cat(sprintf("depot: %d lots, %s units (%.0fx expected demand), expiring %s\n",
+            nrow(depot), format(sum(depot$Qty), big.mark = ","), DEPOT_FACTOR,
+            paste(sort(unique(depot$Expiry)), collapse = ", ")))
 
 CONTROL <- list(safety_stock_days = 30, target_days = 90, lead_time_days = 21,
                 unplanned_visit_pct = 0.10, oversupply_pct = 0.10,
