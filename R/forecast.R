@@ -124,10 +124,10 @@ FORECAST_MODES <- c("oracle", "trailing", "rung")
 # --------------------------------------------------------------------------- #
 # .forecast_short()
 # The AT RISK test: does the planner's forecast say today's stock runs out
-# before the next shipment lands? The original industry tool set the
-# reorder point a lead time before running inventory crossed safety stock, so
-# the crossing was routine, and raised its alert on site inventory against the
-# forecasted burn. This is that alert.
+# before the next shipment lands? The reorder point sits a lead time before
+# running inventory crosses safety stock, so that crossing is the routine
+# trigger for an order; the alert is on site inventory against the forecasted
+# burn.
 #
 #   st    per-site state after today's dispensing and reorder decision
 #   fc    today's .forecast_window() result (its rate, for trailing)

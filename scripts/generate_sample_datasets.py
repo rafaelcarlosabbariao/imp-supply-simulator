@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
 """
-Generate schema-correct sample datasets/ CSVs for the IMP demand & supply
-simulation.
+Generate the sample datasets/ CSVs for the IMP demand & supply simulation.
 
-The real app/notebook is meant to read six tables that are normally produced by
-SQL against the internal UDDM warehouse (see queries.sql). Those extracts are
-not committed (they contain live clinical-trial data), so the notebook could not
-run. This script reproduces the *schemas* exactly as the notebook and
-queries.sql reference them, and fills them with internally-consistent synthetic
-data derived from the committed Program_Inputs.xlsx (real enrollment + dosing
-plans for the two demo studies TRIAL-201 / TRIAL-118).
+Fills six tables (studies, dosing, subject visits, site and depot inventory,
+resupply orders) with internally-consistent synthetic data built from the
+enrollment and dosing plans in Program_Inputs.xlsx for the two demo studies,
+TRIAL-201 and TRIAL-118.
 
 Everything is seeded, so output is deterministic and reproducible.
 
 Outputs (datasets/):
-  study_info.csv       - one row per study (key col: study_number)
-  dosing_matrix.csv    - visit-container-type dosing rows (key col: prt_code_vct)
+  study_info.csv       - one row per study (key col: protocol)
+  dosing_matrix.csv    - visit-container-type dosing rows (key col: protocol)
   visit_details.csv    - historical/actual subject visits (key col: protocol)
   site_inventory.csv   - on-hand inventory at each site (key col: protocol_id)
   depot_inventory.csv  - on-hand inventory at each depot (key col: protocol)
@@ -37,7 +33,7 @@ SEED = 20240701
 random.seed(SEED)
 
 # --------------------------------------------------------------------------- #
-# Read the committed input workbook (the real enrollment + dosing plans)
+# Read the committed input workbook (the enrollment + dosing plans)
 # --------------------------------------------------------------------------- #
 def _clean(v):
     if v is None:
@@ -77,14 +73,14 @@ PROTOCOLS = sorted({r["Protocol"] for r in enrollment})
 # Study-level metadata (compound / program) inferred from the DU descriptions.
 STUDY_META = {
     "TRIAL-201": dict(
-        irt="IRT-Alpha", drug_program_code="PGM-A", compound_number="Compound-A",
-        drug_generic_name="Compound-A", study_phase="PHASE I",
-        study_ta="CARDIOVASCULAR", study_type="INTERVENTIONAL",
+        irt_system="IRT-Alpha", program_code="PGM-A", compound="Compound-A",
+        drug_name="Compound-A", phase="PHASE I",
+        therapeutic_area="CARDIOVASCULAR", study_type="INTERVENTIONAL",
     ),
     "TRIAL-118": dict(
-        irt="IRT-Beta", drug_program_code="PGM-B", compound_number="Compound-C",
-        drug_generic_name="Compound-C / Compound-B", study_phase="PHASE I",
-        study_ta="ONCOLOGY", study_type="INTERVENTIONAL",
+        irt_system="IRT-Beta", program_code="PGM-B", compound="Compound-C",
+        drug_name="Compound-C / Compound-B", phase="PHASE I",
+        therapeutic_area="ONCOLOGY", study_type="INTERVENTIONAL",
     ),
 }
 
@@ -92,9 +88,9 @@ STUDY_META = {
 def meta_for(protocol):
     return STUDY_META.get(
         protocol,
-        dict(irt="Unknown", drug_program_code=protocol[:4],
-             compound_number="NA", drug_generic_name="NA",
-             study_phase="NA", study_ta="NA", study_type="INTERVENTIONAL"),
+        dict(irt_system="Unknown", program_code=protocol[:4],
+             compound="NA", drug_name="NA",
+             phase="NA", therapeutic_area="NA", study_type="INTERVENTIONAL"),
     )
 
 
@@ -162,17 +158,17 @@ for p in PROTOCOLS:
     ends = [parse_d(r["Enroll_End"]) for r in p_enr]
     total_planned = sum(int(float(r["Patients"])) for r in p_enr)
     study_rows.append(dict(
-        irt=m["irt"], study_number=p, drug_program_code=m["drug_program_code"],
-        compound_number=m["compound_number"], drug_generic_name=m["drug_generic_name"],
-        study_phase=m["study_phase"], study_ta=m["study_ta"], study_type=m["study_type"],
-        study_status="ONGOING",
-        study_fsfv_date=min(starts).isoformat(),
-        study_lslv_date=max(ends).isoformat(),
-        study_planned_subjects=total_planned,
-        study_tot_subj_entered_active=int(total_planned * 0.35),
-        study_tot_sites_active=len(centers),
-        study_actual_countries=len(countries),
-        study_plan_finish_date=(max(ends) + timedelta(days=365)).isoformat(),
+        irt_system=m["irt_system"], protocol=p, program_code=m["program_code"],
+        compound=m["compound"], drug_name=m["drug_name"],
+        phase=m["phase"], therapeutic_area=m["therapeutic_area"], study_type=m["study_type"],
+        status="ONGOING",
+        first_visit_date=min(starts).isoformat(),
+        last_visit_date=max(ends).isoformat(),
+        planned_patients=total_planned,
+        enrolled_patients=int(total_planned * 0.35),
+        active_sites=len(centers),
+        countries=len(countries),
+        planned_end_date=(max(ends) + timedelta(days=365)).isoformat(),
     ))
 write_csv("study_info.csv", list(study_rows[0].keys()), study_rows)
 
@@ -184,36 +180,36 @@ container_id = 5000
 for d in dosing_long:
     m = meta_for(d["protocol"])
     container_id += 1
-    # one representative row per (protocol, arm, DU); vis_visit_num is generic
+    # one representative row per (protocol, arm, DU); the visit code is generic
     dose_rows.append(dict(
-        datasource=m["irt"],
-        prt_code_vct=d["protocol"],
-        tgp_code_vct=d["arm"],
-        desc_tgp=f"{d['arm']} treatment group",
-        vis_visit_num_vct="C1D1",
-        vis_desc="Randomization/Cycle 1 Day 1",
-        cnt_container_type_id_vct=container_id,
-        desc_cnt=d["du"],
-        csds_du_type_id_cnt=container_id,
-        dispensing_set_id=f"{d['arm']}-SET",
-        qty_vct=d["qty"],
-        qty_tts=d["qty"],
+        source=m["irt_system"],
+        protocol=d["protocol"],
+        arm=d["arm"],
+        arm_description=f"{d['arm']} treatment group",
+        visit_code="C1D1",
+        visit_description="Randomization/Cycle 1 Day 1",
+        container_type_id=container_id,
+        du_description=d["du"],
+        du_type_id=container_id,
+        dispensing_set=f"{d['arm']}-SET",
+        quantity=d["qty"],
+        quantity_dispensed=d["qty"],
         cycle_length=d["cycle_length"],
         remaining_cycles=d["cycles"],
-        vis_dur_from_anchor=0,
-        vis_dur_window_plus=3,
-        vis_dur_window_minus=3,
-        sequence_vct=1,
+        days_from_anchor=0,
+        window_plus_days=3,
+        window_minus_days=3,
+        sequence=1,
     ))
 write_csv("dosing_matrix.csv", list(dose_rows[0].keys()), dose_rows)
 
 # --------------------------------------------------------------------------- #
 # 3. visit_details.csv  (historical actuals for already-active subjects)
 #    A fraction of planned patients are modelled as already enrolled/active so
-#    the notebook's "current active subjects" logic has data to chew on.
+#    a "current active subjects" view has data to work with.
 # --------------------------------------------------------------------------- #
 visit_rows = []
-today = date(2024, 1, 1)  # notebook's frame of reference ("2023+")
+today = date(2024, 1, 1)  # the sample data's frame of reference ("2023+")
 for r in enrollment:
     p = r["Protocol"]
     start = parse_d(r["Enroll_Start"])
@@ -226,12 +222,10 @@ for r in enrollment:
         continue
     cyc_len = dus[0]["cycle_length"]
     for k in range(n_active):
-        ssid = f"{r['Center']}{1000 + k + 1}"
+        subject_id = f"{r['Center']}{1000 + k + 1}"
         screen = start + timedelta(days=random.randint(0, 20))
         rand = screen + timedelta(days=random.randint(1, 28))
         # emit screening + a few completed cycles up to `today`
-        vis_num = 0
-        vis_date = rand
         seq = [("Screening", screen, 0)]
         vn = 1
         d0 = rand
@@ -243,15 +237,16 @@ for r in enrollment:
             for d in dus:
                 visit_rows.append(dict(
                     protocol=p, country=r["Country"], center=r["Center"], site=r["Center"],
-                    ssid=ssid, subject_status="Active", tg_code=arm, tgp_desc=f"{arm} group",
-                    chrt_id=r["Cohort"], chrt_desc=r["Cohort"],
-                    vis_num=vn,
-                    vis_desc="Randomization/Cycle 1 Day 1" if desc == "Cycle 1" else desc,
-                    vis_date=vd.isoformat(), visit_type="Planned",
-                    du_def_desc=(d["du"] if desc != "Screening" else ""),
+                    subject_id=subject_id, subject_status="Active", arm=arm,
+                    arm_description=f"{arm} group",
+                    cohort=r["Cohort"], cohort_description=r["Cohort"],
+                    visit_number=vn,
+                    visit_description="Randomization/Cycle 1 Day 1" if desc == "Cycle 1" else desc,
+                    visit_date=vd.isoformat(), visit_type="Planned",
+                    du_description=(d["du"] if desc != "Screening" else ""),
                     kit_id=(f"KIT{random.randint(100000,999999)}" if desc != "Screening" else ""),
-                    screen_date=screen.isoformat(), rand_date=rand.isoformat(),
-                    discontinue_date="",
+                    screening_date=screen.isoformat(), randomization_date=rand.isoformat(),
+                    discontinuation_date="",
                 ))
 write_csv("visit_details.csv", list(visit_rows[0].keys()), visit_rows)
 
@@ -318,8 +313,8 @@ for (p, center, _c), country in sorted(sites.items()):
         site_inv_rows.append(dict(
             protocol_id=p, center_number=center, country_name=country,
             du_description=du, inventory_status="Inventory_Available",
-            qa_status="Released", site_inventory_count=base,
-            retest_date_inv=retest.isoformat(), lot_id_inv=lot_id(p, lot_counter),
+            qa_status="Released", quantity=base,
+            retest_date=retest.isoformat(), lot_id=lot_id(p, lot_counter),
         ))
 write_csv("site_inventory.csv", list(site_inv_rows[0].keys()), site_inv_rows)
 
@@ -363,8 +358,8 @@ for p in PROTOCOLS:
                 protocol=p, depot_name=depot,
                 country_name=depot.split()[0], du_description=du,
                 inventory_status="Inventory_Available", qa_status="Released",
-                depot_inventory_count=base, retest_date_inv=retest.isoformat(),
-                lot_id_inv=lot_id(p, lot_counter),
+                quantity=base, retest_date=retest.isoformat(),
+                lot_id=lot_id(p, lot_counter),
             ))
 write_csv("depot_inventory.csv", list(depot_inv_rows[0].keys()), depot_inv_rows)
 

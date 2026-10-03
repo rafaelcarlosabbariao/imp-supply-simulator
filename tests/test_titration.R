@@ -138,8 +138,8 @@ cat("\n== 4. the ratchet and the restart ==\n")
   # the middle, where the rung is both reachable and protective.
   #
   # This is worth pinning down: a study lead who sets the tolerance dose at
-  # target to "make them prove it" buys nearly the same low-dose supply
-  # exposure as having no ratchet at all.
+  # the target rung buys nearly the same low-dose supply exposure as having
+  # no ratchet at all.
   ex_low <- vapply(1:6, function(tol) {
     e <- expected_demand(build_ladders(dosing6, spec(Tolerance_Level = tol,
                                                     P_Miss = 0.15)))

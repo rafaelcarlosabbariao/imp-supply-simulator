@@ -2,8 +2,10 @@
 
 <h1 align="center">MC² — Monte-Carlo clinical supply simulator</h1>
 
-MC² is a public rebuild, on synthetic data, of a clinical-supply simulator built in
-industry. It lives in this repository as `imp-supply-simulator`.
+MC² runs on synthetic data. Its main case is a protocol with a complex
+dose-titration schedule, and it runs protocols on a simple fixed-dose schedule as
+well: an arm with no titration spec is dispensed the same dose at every visit. It
+lives in this repository as `imp-supply-simulator`.
 
 **Monte-Carlo demand forecasting and inventory-stockout prediction for clinical
 trials.** Give it an enrollment plan and a dosing schedule for *any* protocol,
@@ -88,7 +90,7 @@ a path and genuinely needs one.
   [`docs/EXPERIMENT.md`](docs/EXPERIMENT.md). The confirmatory run (116
   protocols, 50 replications, 2026-09-24) put the rung forecast's stockout
   proportion 0.308 below trailing's (95% interval −0.357 to −0.259; −0.395 to
-  −0.222 clustered on the 18 real protocols), with 33% fewer expired units.
+  −0.222 clustered on the 18 donor protocols), with 33% fewer expired units.
 
 ## Quickstart
 

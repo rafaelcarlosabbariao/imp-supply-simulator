@@ -25,8 +25,8 @@ if (capabilities("cairo")) {
   options(bitmapType = "cairo", shiny.usecairo = TRUE)
 }
 
-# Shared engine: single source of truth for the app, the notebook, and the
-# headless runner (R/run_simulation.R).
+# Shared engine: single source of truth for the app and the headless runner
+# (scripts/run_simulation.R).
 source("R/titration.R", local = FALSE)
 source("R/simulation.R", local = FALSE)
 source("R/forecast.R", local = FALSE)

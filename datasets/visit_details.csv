@@ -1,4 +1,4 @@
-protocol,country,center,site,ssid,subject_status,tg_code,tgp_desc,chrt_id,chrt_desc,vis_num,vis_desc,vis_date,visit_type,du_def_desc,kit_id,screen_date,rand_date,discontinue_date
+protocol,country,center,site,subject_id,subject_status,arm,arm_description,cohort,cohort_description,visit_number,visit_description,visit_date,visit_type,du_description,kit_id,screening_date,randomization_date,discontinuation_date
 TRIAL-201,USA,1001,1001,10011001,Active,1Vial,1Vial group,Cohort7,Cohort7,0,Screening,2023-03-26,Planned,,,2023-03-26,2023-04-11,
 TRIAL-201,USA,1001,1001,10011001,Active,1Vial,1Vial group,Cohort7,Cohort7,0,Screening,2023-03-26,Planned,,,2023-03-26,2023-04-11,
 TRIAL-201,USA,1001,1001,10011001,Active,1Vial,1Vial group,Cohort7,Cohort7,1,Randomization/Cycle 1 Day 1,2023-04-11,Planned,Diluent for Compound-A 15 mg/vial (1x/carton),KIT434230,2023-03-26,2023-04-11,

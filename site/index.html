@@ -163,8 +163,9 @@
     <p class="sub">It models each patient's path through their dosing cycles as a Markov chain, runs that
       across every enrolled patient many times, and projects IMP inventory at every site and depot
       under a resupply policy, dating each stockout weeks ahead.</p>
-    <p class="provenance">MC² is a public rebuild, on synthetic data, of a clinical-supply simulator
-      built in industry.</p>
+    <p class="provenance">MC² runs on synthetic data. Its main case is a protocol with a complex
+      dose-titration schedule, and it runs protocols on a simple fixed-dose schedule as well: an arm
+      with no titration spec is dispensed the same dose at every visit.</p>
     <div class="cta">
       <a class="btn primary" id="repo" href="https://github.com/rafaelcarlosabbariao/imp-supply-simulator" target="_blank" rel="noopener">View on GitHub</a>
       <a class="btn" id="article" href="methodology.html">Read the Write-up</a>

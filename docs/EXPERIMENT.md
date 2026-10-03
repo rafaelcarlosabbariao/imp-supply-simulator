@@ -132,8 +132,8 @@ in the frame and however the work is split across processes.
 **The frame.** The 18-protocol frame (`datasets/frame/`, built by
 `scripts/build_frame.R` from REINS: 9 titrating, 689 sites, 43,440 planned
 patients), expanded under §8 if the power calculation requires it. An expanded
-frame keeps the 18 real protocols and adds synthetic ones, each resampled from a
-real protocol and varied: site count and enrollment by a lognormal factor
+frame keeps the 18 donor protocols and adds synthetic ones, each resampled from
+a donor and varied: site count and enrollment by a lognormal factor
 (SD 0.25 on the log scale), duration by one with SD 0.20, start 0–180 days
 later, and titration parameters (`P_Miss`, `Tolerance_Level`) assigned by the
 same rule as the real rows. `frame.csv` records each protocol's donor.
@@ -243,7 +243,7 @@ outside 92–98% means the interval is not reported as a 95% confidence interval
    how much of the effect survives a misstated `P_Miss`; it does not remove the
    concern.
 3. **The population is the generator.** Synthetic protocols are varied
-   resamples of 18 real ones. A claim about "protocols from this population" is
+   resamples of the 18 donors. A claim about "protocols from this population" is
    a claim about that generator, and the donor-clustered standard error (§9) is
    the check on how much the synthetic rows add beyond their donors.
 4. **Fixed nuisance parameters.** `Restart_Policy = uncapped`, `P_Revert = 0` on
@@ -269,7 +269,7 @@ outside 92–98% means the interval is not reported as a 95% confidence interval
   the treatment moves the problem. Under the pre-specified reading this is a
   negative result.
 - A donor-clustered standard error large enough to make the effect
-  indistinguishable from zero: the effect does not generalise past the 18 real
+  indistinguishable from zero: the effect does not generalise past the 18 donor
   protocols' designs.
 
 All three outcomes get written up.
@@ -318,6 +318,10 @@ engine commit hash.
   protocol under both arms instead of randomising. The harness changed to run
   protocols one at a time (`9d0e8ce`), so this version is frozen there. The
   earlier texts are in the git history of this file.
+- **2026-10-02, wording only.** The frame's 18 base protocols were called
+  "real"; they come from REINS, whose portfolio is synthetic, and are now
+  called the donor protocols, the term §9's donor-clustered error already
+  uses. No design, analysis or result changed.
 
 ---
 
@@ -337,7 +341,7 @@ both arms, 18 protocols) and `scripts/power_curve.R`:
 | Smallest effect detectable at 18 protocols, stratified | 13.5pp |
 
 **The §8 contingency applies.** The frame is expanded to 116 protocols with
-`scripts/build_frame.R ~/reins/app/data datasets/frame_expanded 116`: 18 real
+`scripts/build_frame.R ~/reins/app/data datasets/frame_expanded 116`: 18 donor
 and 98 synthetic protocols, 53 of them titrating, 4,471 sites, 218,313 planned
 patients. The confirmatory run uses it (`EXP_FRAME=datasets/frame_expanded`)
 with R = 50. One timing replication (rep_seed 9999, outside the confirmatory
@@ -361,7 +365,7 @@ carry the oracle and sensitivity walks, took about 13 minutes each, the rest
 11:24. Its output, unedited, and the 50 per-replication files are in
 `results/confirmatory/`.
 
-**The seeds overlap the pilot's.** For the 18 real protocols, replications 1–20
+**The seeds overlap the pilot's.** For the 18 donor protocols, replications 1–20
 use the same seeds as the paired pilot of §13, so those 360 protocol-replications
 repeat pilot draws. The synthetic protocols' seeds are new. This was not noticed
 when §5 was written.

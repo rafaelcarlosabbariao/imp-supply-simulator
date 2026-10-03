@@ -38,10 +38,10 @@ d <- compute_demand(simulate_visits(simulate_enrollment(plan, 1L), dosing, visit
 none <- data.frame(Protocol = character(0), Location = character(0), DU = character(0),
                    Qty = numeric(0), Expiry = as.Date(character(0)))
 depot <- data.frame(protocol = "P1", depot_name = "D1", du_description = "DRUG",
-                    depot_inventory_count = 1e6, retest_date_inv = "2030-01-01")
+                    quantity = 1e6, retest_date = "2030-01-01")
 stock <- data.frame(protocol_id = "P1", center_number = c("1001", "2001"),
                     country_name = c("USA", "Japan"), du_description = "DRUG",
-                    site_inventory_count = 200, retest_date_inv = "2030-01-01")
+                    quantity = 200, retest_date = "2030-01-01")
 pars <- function(resupply = TRUE, asof = "2024-06-01")
   list(start_date = as.Date(asof), horizon_end = as.Date("2025-06-01"),
        enable_resupply = resupply, unplanned_visit_pct = 0)
@@ -111,7 +111,7 @@ cat("\n== 5. a known disruption is planned for; an unknown one is a surprise ==\
 {
   win <- data.frame(Country = "Japan", Start = "2024-07-01", End = "2024-12-31",
                     Delay_Days = 45)
-  lean <- stock; lean$site_inventory_count <- 60
+  lean <- stock; lean$quantity <- 60
   unk <- run(d, lean, depot, pars(), disruptions = win, forecast = "oracle")
   kn  <- run(d, lean, depot, pars(), disruptions = transform(win, Known = TRUE),
              forecast = "oracle")

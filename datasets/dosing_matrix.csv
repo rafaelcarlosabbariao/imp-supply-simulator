@@ -1,4 +1,4 @@
-datasource,prt_code_vct,tgp_code_vct,desc_tgp,vis_visit_num_vct,vis_desc,cnt_container_type_id_vct,desc_cnt,csds_du_type_id_cnt,dispensing_set_id,qty_vct,qty_tts,cycle_length,remaining_cycles,vis_dur_from_anchor,vis_dur_window_plus,vis_dur_window_minus,sequence_vct
+source,protocol,arm,arm_description,visit_code,visit_description,container_type_id,du_description,du_type_id,dispensing_set,quantity,quantity_dispensed,cycle_length,remaining_cycles,days_from_anchor,window_plus_days,window_minus_days,sequence
 IRT-Alpha,TRIAL-201,1Vial,1Vial treatment group,C1D1,Randomization/Cycle 1 Day 1,5001,Diluent for Compound-A 15 mg/vial (1x/carton),5001,1Vial-SET,1.0,1.0,15,20,0,3,3,1
 IRT-Alpha,TRIAL-201,1Vial,1Vial treatment group,C1D1,Randomization/Cycle 1 Day 1,5002,Compound-A 15 mg/vial (1x/carton),5002,1Vial-SET,1.0,1.0,15,20,0,3,3,1
 IRT-Beta,TRIAL-118,Combo5,Combo5 treatment group,C1D1,Randomization/Cycle 1 Day 1,5003,Compound-B 15 mg bottle 70 ct,5003,Combo5-SET,2.0,2.0,21,26,0,3,3,1

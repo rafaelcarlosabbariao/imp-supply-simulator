@@ -49,7 +49,7 @@ populated, so a stray column in a spreadsheet can never silently move a
 forecast. That rule is what made this change safe to ship against existing
 inputs.
 
-Semantics, as the study lead defined them:
+Semantics, as the CSP defines them:
 
 - The first `N` visits (usually 6) titrate: up while tolerating, hold, or down.
 - A **missed visit dispenses nothing**, returns the patient to their floor, and
@@ -76,8 +76,7 @@ almost never fires before a miss knocks the patient back, so exposure climbs
 again. The minimum is in the middle, where the rung is both reachable and
 protective.
 
-**A study lead who puts the tolerance dose at target to "make them prove it"
-buys close to the same low-dose supply exposure as having no ratchet at all.**
+**A study lead who puts the tolerance dose at the target rung buys close to the same low-dose supply exposure as having no ratchet at all.**
 That is counterintuitive, it is a direct consequence of the CSP text, and it is
 invisible to a supply planner at forecast time. It is now three assertions in
 `tests/test_titration.R` and a paragraph in `MODEL_THEORY.md` §2a.
@@ -195,8 +194,7 @@ frames).
 
 # Addendum — initial site stocking
 
-**Same day, separate decision.** Raised by the study lead: studies are enacted
-in **cohorts**, so a site is activated and shipped an initial supply *before*
+**Same day, separate decision.** Studies are enacted in **cohorts**, so a site is activated and shipped an initial supply *before*
 its first patient visit. The engine had no such concept — starting on-hand was
 whatever `datasets/site_inventory.csv` said, with no stated relationship to how
 many patients the site was about to see.

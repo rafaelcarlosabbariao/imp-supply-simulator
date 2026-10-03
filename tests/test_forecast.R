@@ -35,10 +35,10 @@ set.seed(1)
 d <- compute_demand(simulate_visits(simulate_enrollment(plan, 1L), dosing, visit_window = 0,
                                     simulation_end_date = as.Date("2025-06-01")))
 depot <- data.frame(protocol = "P1", depot_name = "D1", du_description = "DRUG",
-                    depot_inventory_count = 1e6, retest_date_inv = "2030-01-01")
+                    quantity = 1e6, retest_date = "2030-01-01")
 stock <- data.frame(protocol_id = "P1", center_number = "1001", country_name = "USA",
-                    du_description = "DRUG", site_inventory_count = 60,
-                    retest_date_inv = "2030-01-01")
+                    du_description = "DRUG", quantity = 60,
+                    retest_date = "2030-01-01")
 pars <- list(start_date = as.Date("2024-06-01"), horizon_end = as.Date("2025-06-01"),
              unplanned_visit_pct = 0)
 run <- function(...) suppressWarnings(suppressMessages(project_inventory(...)))
@@ -248,7 +248,7 @@ cat("\n== 9. the rung forecast in the walk ==\n")
                         simulation_end_date = as.Date("2025-06-01"), titration = tspec)
   dd <- compute_demand(vv)
   dep <- data.frame(protocol = "T1", depot_name = "D1", du_description = "DRUG",
-                    depot_inventory_count = 1e6, retest_date_inv = "2030-01-01")
+                    quantity = 1e6, retest_date = "2030-01-01")
   pp <- list(start_date = as.Date("2024-01-01"), horizon_end = as.Date("2025-06-01"))
   none <- data.frame(Protocol = character(0), Location = character(0), DU = character(0),
                      Qty = numeric(0), Expiry = as.Date(character(0)))
@@ -266,7 +266,7 @@ cat("\n== 10. stock about to expire is not counted as cover ==\n")
 {
   # 600 units on hand, far above the reorder point, that expire on 2024-07-01.
   # Without the rule the site counts them until they expire, then waits a lead time.
-  soon <- transform(stock, site_inventory_count = 600, retest_date_inv = "2024-07-01")
+  soon <- transform(stock, quantity = 600, retest_date = "2024-07-01")
   pr <- run(d, soon, depot, modifyList(pars, list(start_date = as.Date("2024-06-01"))))
   first <- min(pr$daily$Date[pr$daily$Reorder_Qty > 0])
   ok("the site reorders before its stock expires, not after",
@@ -275,8 +275,8 @@ cat("\n== 10. stock about to expire is not counted as cover ==\n")
      sum(pr$daily$Stockout_Units[pr$daily$Date >= as.Date("2024-07-01") &
                                  pr$daily$Date < as.Date("2024-08-01")]) == 0)
   near <- data.frame(protocol = "P1", depot_name = "D1", du_description = "DRUG",
-                     depot_inventory_count = c(1e6, 1e6),
-                     retest_date_inv = c("2024-07-10", "2030-01-01"))
+                     quantity = c(1e6, 1e6),
+                     retest_date = c("2024-07-10", "2030-01-01"))
   pr2 <- run(d, stock, near, pars)
   got <- pr2$shipments$Arrival[pr2$shipments$Source == "reorder"][1]
   ok("the depot skips a lot that would land with under 30 days left",

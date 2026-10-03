@@ -5,7 +5,7 @@
 #   Rscript scripts/build_frame.R [path/to/reins/app/data] [outdir]
 #
 # The simulator ships 2 studies and 8 sites, which is not a frame you can
-# randomise over. REINS carries a real portfolio -- phase, therapeutic area,
+# randomise over. REINS carries a synthetic portfolio -- phase, therapeutic area,
 # site count, enrolment target, dates -- so it supplies the population and this
 # engine supplies the outcome. See docs/EXPERIMENT.md §5.
 #

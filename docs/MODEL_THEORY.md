@@ -118,8 +118,7 @@ is a no-op — the floor already starts there — so every restart goes to groun
 and low-dose exposure is at its maximum. Placed at the top rung it almost never
 fires before a miss knocks the patient back, so exposure climbs again. The
 minimum sits in the middle, where the rung is both reachable and protective. A
-study lead who sets the tolerance dose at target to "make them prove it" buys
-close to the same low-dose supply exposure as having no ratchet at all.
+study lead who sets the tolerance dose at the target rung buys close to the same low-dose supply exposure as having no ratchet at all.
 
 ### Solving it exactly
 

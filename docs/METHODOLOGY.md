@@ -4,13 +4,18 @@ This document explains, in detail, how the model turns an enrollment plan and a
 dosing schedule into a demand forecast, and how it projects inventory forward to
 catch stockouts. It covers the math, the assumptions, and the limitations.
 
+The simulator's main case is a protocol with a complex dose-titration schedule.
+Protocols on a simple fixed-dose schedule run through the same engine: an arm
+with no row in `Titration_Input` sits on rung 1 and is dispensed the same dose
+at every visit (§1.3).
+
 The implementation lives in two modules:
 
 - `R/simulation.R` — **demand** (enrollment → visits → dispensing)
 - `R/inventory.R` — **supply** (inventory projection, resupply, expiry)
 
-Both are pure functions with no Shiny dependency, so the app, the notebook, and
-the headless runner all share exactly one implementation.
+Both are pure functions with no Shiny dependency, so the app and the headless
+runner share one implementation.
 
 ---
 
@@ -104,11 +109,9 @@ reorder-point rate; use simulated paths for stockout risk.
 The result is a per-subject stream of `(Protocol, Site, DU, Date, Qty, Trial)`
 dispensing events.
 
-> **Fix vs. the original prototype.** The original `simulateVisits` (a) never
-> recorded a dispensed *quantity* — so demand could not be converted to units —
-> and (b) contained a `max(DU_list, FUN = …)` call that is not valid R and threw
-> whenever an arm mixed cycle lengths. Both are corrected here: quantity is
-> tracked, and the cadence is simply the arm's longest cycle length.
+> **Quantity and cadence.** Each visit records the dispensed *quantity*, so
+> demand converts to units, and the cadence is the arm's longest cycle length,
+> so an arm that mixes cycle lengths steps forward on one schedule.
 
 ### 1.4 Demand aggregation (`compute_demand`)
 
@@ -405,11 +408,10 @@ The old rule flagged 18 of 30 pairs. Together they spent 0.5% of their days belo
 safety stock, and 14 of the 18 never fell below 23 days of supply. Most of the
 flags were dips of a few days before a reorder landed.
 
-**The rule adopted, 2026-09-24.** The engine takes the rule the original
-industry tool used. Its overview deck set the reorder point a lead time before running
-inventory crossed safety stock, so the crossing was the routine trigger for an
-order, and it raised its alert on site inventory against the forecasted burn.
-The engine now does the same. Each day, after dispensing and the reorder
+**The rule adopted, 2026-09-24.** The reorder point sits a lead time before
+running inventory crosses safety stock, so the crossing is the routine trigger
+for an order, and the alert is raised on site inventory against the forecasted
+burn. Each day, after dispensing and the reorder
 decision, it projects the site's stock to the next arrival:
 
 - the next arrival is the earliest shipment on the road, or, with nothing on
@@ -515,10 +517,9 @@ warning of that delay would have avoided. `run_simulation.R` takes a scenario as
 
 ---
 
-## 5. Data sources (production)
+## 5. Data sources
 
-In production the six input tables (study info, enrollment, dosing/visit
-container types, orders, site inventory, depot inventory, subject visits) were
-extracted from the UDDM warehouse; the queries are not part of this repository.
-The committed `datasets/` are **synthetic** stand-ins produced by
-`scripts/generate_sample_datasets.py` so the tool runs without warehouse access.
+The input tables (study info, enrollment, dosing/visit container types, orders,
+site inventory, depot inventory, subject visits) would come, in a live
+deployment, from a trial's IRT and inventory systems. The committed `datasets/`
+are **synthetic**, produced by `scripts/generate_sample_datasets.py`.

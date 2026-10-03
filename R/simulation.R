@@ -221,9 +221,8 @@ simulate_enrollment <- function(enrollment_df, num_simulations = 1) {
 # laddering for the arms named in it. Every other arm stays pinned to rung 1,
 # which is the behaviour this engine had before titration existed.
 #
-# NOTE: this replaces the original which (a) never recorded a dispensed quantity
-# and (b) contained a broken `max(DU_list, FUN=...)` branch that errored whenever
-# an arm mixed cycle lengths. Cadence here is the longest cycle length in the arm.
+# NOTE: each visit records its dispensed quantity. Cadence is the longest cycle
+# length in the arm, so an arm that mixes cycle lengths steps on one schedule.
 # --------------------------------------------------------------------------- #
 # What changed since a patient's last attended visit, by code 0..4.
 STATUS_CHANGES <- c("", "stabilised", "demoted: missed visit",

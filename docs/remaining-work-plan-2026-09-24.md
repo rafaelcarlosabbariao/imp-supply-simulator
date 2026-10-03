@@ -23,7 +23,7 @@ Rafael marked **[decide]**.
 | R6 | **Arms are pooled in the rung forecast.** `du_forecast_index()` keys on Protocol + DU, so the last arm overwrites the others; `build_occupancy()` reads the rung count by protocol alone; SSIDs repeat across simulated trials, and occupancy is summed across trials while demand is averaged across them. | Open. The 18-protocol frame has one arm per protocol, so the deep-dive numbers are unaffected by the first two parts. |
 | R7 | **The app neither titrates nor seeds**, and exposes none of in-transit, lanes, disruptions or the ledger. | Open. This is Phase 7 of the seeding plan. |
 | R8 | **The experiment is void** (`docs/EXPERIMENT.md`, 2026-09-24 notice) and the pilot and power curve with it. The deep-dive also records n = 1 replication and `Total_Expired = 0`. | Open. Waits on R1–R6. |
-| R9 | **Docs and comments that no longer match the code:** `R/titration.R:21` says the reorder point uses a trailing average; `R/inventory.R:165` says the start date defaults to the earliest demand date, and line 245 uses `Sys.Date()`; METHODOLOGY cites `queries.sql`, which is not in the repo; README and `MODEL_THEORY.md` describe screening, randomisation and discontinuation states the engine does not have. | Open. |
+| R9 | **Docs and comments that no longer match the code:** `R/titration.R:21` says the reorder point uses a trailing average; `R/inventory.R:165` says the start date defaults to the earliest demand date, and line 245 uses `Sys.Date()`; METHODOLOGY cites an extraction-query file that is not in the repo; README and `MODEL_THEORY.md` describe screening, randomisation and discontinuation states the engine does not have. | Open. |
 | R10 | **An as-of date after the horizon is reset without a word** to the earliest demand date (`R/inventory.R:247`). | Open. |
 | R11 | **AT RISK may be firing on routine operation.** A pair is AT RISK when its minimum days of supply over the whole horizon falls below the safety stock (`R/inventory.R:555`). Stock normally reaches about the safety level just before a delivery, so one dip anywhere in five years flags the pair. 13 of 26 pairs were flagged on the sample before today's changes. | Unmeasured. |
 | R12 | **`main` is 10 commits ahead of `origin`** once this plan is committed. | Waiting on Rafael. |
@@ -132,7 +132,7 @@ arrival. No change is made before the numbers are in.
 - `start_date` defaults to the earliest demand date, as the comment says; the app
   and runner always pass one, so only direct callers see the change.
 - The `titration.R:21` comment describes the current reorder rule.
-- METHODOLOGY drops the `queries.sql` reference and the "one dispensing option per
+- METHODOLOGY drops the extraction-query reference and the "one dispensing option per
   DU" limitation. README and `MODEL_THEORY.md` mark screening, randomisation and
   discontinuation as states of the theory that the engine does not run.
 
@@ -332,6 +332,6 @@ track that on top of visit counts (7.2); push once, at the end (7.3).
   Results are in `EXPERIMENT.md` under *Results*, with the run's files in
   `results/confirmatory/`.
 - **D5 decided (2026-09-24).** AT RISK now flags a pair when the planner's own
-  forecast says its stock runs out before the next shipment lands, the alert
-  of the original industry tool's overview deck (METHODOLOGY §2.5a). The showcase
+  forecast says its stock runs out before the next shipment lands
+  (METHODOLOGY §2.5a). The showcase
   cards and map were regenerated: 1 stockout, 0 at risk, 8 healthy.

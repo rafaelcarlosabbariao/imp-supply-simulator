@@ -161,7 +161,7 @@ shinyUI(page_navbar(
                  "resupply policy with FEFO consumption and lot expiry. Run the",
                  "visit simulation on tab 2 first. Inventory columns are mapped",
                  "flexibly (protocol_id/center_number/country_name/du_description/",
-                 "site_inventory_count/retest_date_inv, or equivalents).")
+                 "quantity/retest_date, or equivalents).")
       ),
       mainPanel(
         width = 9,

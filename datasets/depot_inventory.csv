@@ -1,4 +1,4 @@
-protocol,depot_name,country_name,du_description,inventory_status,qa_status,depot_inventory_count,retest_date_inv,lot_id_inv
+protocol,depot_name,country_name,du_description,inventory_status,qa_status,quantity,retest_date,lot_id
 TRIAL-118,EMEA Depot,EMEA,Compound-B 15 mg bottle 70 ct,Inventory_Available,Released,4982,2029-12-30,TRIALOT1031
 TRIAL-118,EMEA Depot,EMEA,Compound-C 100 mg Bottle 30 ct,Inventory_Available,Released,16469,2027-12-31,TRIALOT1032
 TRIAL-118,EMEA Depot,EMEA,Compound-C 25 mg Bottle 30 ct,Inventory_Available,Released,148,2029-12-30,TRIALOT1033

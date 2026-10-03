@@ -1,7 +1,7 @@
 # =========================================================================== #
 # inventory.R  --  Protocol-agnostic SUPPLY engine
 #
-# The piece that was missing from the original app. Takes simulated DEMAND
+# Takes simulated DEMAND
 # (units of each DU dispensed per site per day, from simulation.R) plus the
 # current on-hand inventory at sites and depots, and projects inventory forward
 # in time under an order-up-to (s, S) resupply policy with:
@@ -16,7 +16,7 @@
 # and flag where/when a site will run dry before it happens.
 #
 # Column names in the inventory inputs are mapped flexibly (see .map_inventory)
-# so real UDDM extracts, the sample datasets, or a hand-built upload all work.
+# so the sample datasets, a system export, or a hand-built upload all work.
 # =========================================================================== #
 
 suppressPackageStartupMessages({
@@ -42,12 +42,12 @@ suppressPackageStartupMessages({
                       stringsAsFactors = FALSE))
   df <- normalize_df(df)
   out <- data.frame(
-    Protocol = as.character(.first_present(df, c("Protocol", "protocol", "protocol_id", "prt_code", "study_number", "study_id"))),
+    Protocol = as.character(.first_present(df, c("Protocol", "protocol", "protocol_id", "study_number", "study_id"))),
     Location = as.character(.first_present(df, c("Location", "center_number", "Center", "site", "center", "depot_name", "Depot"), default = location_default)),
-    DU       = as.character(.first_present(df, c("DU", "du_description", "DU_Description", "desc_cnt", "du_def_desc"))),
-    Qty      = suppressWarnings(as.numeric(.first_present(df, c("Qty", "site_inventory_count", "depot_inventory_count", "inventory_count", "quantity", "count"), default = 0))),
-    Expiry   = as_date_flex(.first_present(df, c("Expiry", "retest_date_inv", "retest_date", "expiry_date", "expiration_date"), default = NA)),
-    Lot      = as.character(.first_present(df, c("Lot", "lot_id_inv", "lot_id", "source_packaged_lot"), default = NA)),
+    DU       = as.character(.first_present(df, c("DU", "du_description", "DU_Description"))),
+    Qty      = suppressWarnings(as.numeric(.first_present(df, c("Qty", "quantity", "inventory_count", "count"), default = 0))),
+    Expiry   = as_date_flex(.first_present(df, c("Expiry", "retest_date", "expiry_date", "expiration_date"), default = NA)),
+    Lot      = as.character(.first_present(df, c("Lot", "lot_id"), default = NA)),
     stringsAsFactors = FALSE
   )
   out$Location <- trimws(out$Location)
@@ -694,8 +694,8 @@ project_inventory <- function(demand_df, site_inv_df, depot_inv_df = NULL,
                                                   "Expected_Arrival", "arrival_date"))),
     Ship_Date = as_date_flex(.first_present(df, c("Ship_Date", "ship_date", "shipped_date"))),
     Expiry    = as_date_flex(.first_present(df, c("Expiry", "expiry_date", "retest_date",
-                                                  "retest_date_inv", "expiration_date"))),
-    Lot       = as.character(.first_present(df, c("Lot", "lot_id", "lot_id_inv"))),
+                                                  "expiration_date"))),
+    Lot       = as.character(.first_present(df, c("Lot", "lot_id"))),
     stringsAsFactors = FALSE)
   bad <- is.na(out$Protocol) | is.na(out$Location) | out$Location == "" |
          is.na(out$DU) | is.na(out$Qty) | is.na(out$ETA)

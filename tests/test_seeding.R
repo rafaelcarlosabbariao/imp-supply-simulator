@@ -184,7 +184,7 @@ cat("\n== 7. a site is a center in a country ==\n")
   d <- compute_demand(v)
   inv <- data.frame(protocol_id = "P1", center_number = "1004",
                     country_name = c("Mexico", "USA"), du_description = "DU-LOW",
-                    site_inventory_count = c(500, 7), retest_date_inv = "2026-01-01",
+                    quantity = c(500, 7), retest_date = "2026-01-01",
                     stringsAsFactors = FALSE)
   pr <- project_inventory(d, inv, NULL, list(start_date = as.Date("2024-05-01"),
             horizon_end = as.Date("2025-06-01"), enable_resupply = FALSE))
@@ -205,7 +205,7 @@ cat("\n== 7. a site is a center in a country ==\n")
   d1 <- compute_demand(simulate_visits(simulate_enrollment(one, 1L), dosing6,
           visit_window = 0, simulation_end_date = as.Date("2025-06-01"), titration = tspec))
   inv1 <- data.frame(protocol_id = "P1", center_number = "1001", du_description = "DU-LOW",
-                     site_inventory_count = 40, retest_date_inv = "2026-01-01")
+                     quantity = 40, retest_date = "2026-01-01")
   pr1 <- project_inventory(d1, inv1, NULL, list(start_date = as.Date("2024-05-01"),
            horizon_end = as.Date("2025-06-01"), enable_resupply = FALSE))
   ok("...and resolves by center where it is not",
@@ -250,7 +250,7 @@ cat("\n== 9. seeds ship from the depot, top up, and respect the as-of date ==\n"
   plan <- setNames(rx$Planned_Qty, rx$DU)
   depot <- function(q, retest = "2027-03-31")
     data.frame(protocol = "P1", depot_name = "D1", du_description = names(q),
-               depot_inventory_count = unname(q), retest_date_inv = retest,
+               quantity = unname(q), retest_date = retest,
                stringsAsFactors = FALSE)
   none <- data.frame(Protocol = character(0), Location = character(0), DU = character(0),
                      Qty = numeric(0), Expiry = as.Date(character(0)))
@@ -279,8 +279,8 @@ cat("\n== 9. seeds ship from the depot, top up, and respect the as-of date ==\n"
   # 4. top-up
   hold <- data.frame(protocol_id = "P1", center_number = "1001", country_name = "USA",
                      du_description = c("DU-LOW", "DU-BG"),
-                     site_inventory_count = c(plan[["DU-LOW"]] + 50, floor(plan[["DU-BG"]] / 2)),
-                     retest_date_inv = "2026-01-01", stringsAsFactors = FALSE)
+                     quantity = c(plan[["DU-LOW"]] + 50, floor(plan[["DU-BG"]] / 2)),
+                     retest_date = "2026-01-01", stringsAsFactors = FALSE)
   tu <- run(hold, depot(c("DU-BG" = 1000, "DU-LOW" = 1000)), "2024-04-01", opening = "seeded")
   ts <- tu$shipments[tu$shipments$Source == "seed", ]
   ok("a site already holding the planned quantity is shipped nothing",
@@ -290,8 +290,8 @@ cat("\n== 9. seeds ship from the depot, top up, and respect the as-of date ==\n"
 
   # 5. snapshot mode
   snap <- data.frame(protocol_id = "P1", center_number = "1001", country_name = "USA",
-                     du_description = "DU-LOW", site_inventory_count = 17,
-                     retest_date_inv = "2026-01-01", stringsAsFactors = FALSE)
+                     du_description = "DU-LOW", quantity = 17,
+                     retest_date = "2026-01-01", stringsAsFactors = FALSE)
   sn <- run(snap, depot(c("DU-BG" = 1000, "DU-LOW" = 1000)), "2024-07-01")
   ok("with a snapshot, a seed shipped before the as-of date is dropped",
      sn$opening == "snapshot" && all(grepl("^dropped", sn$shipments$Note[sn$shipments$Source == "seed"])))

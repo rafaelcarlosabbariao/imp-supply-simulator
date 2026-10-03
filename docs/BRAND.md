@@ -21,9 +21,9 @@ returns nothing.
 
 - **Name:** MC², with the descriptor *Monte-Carlo clinical supply simulator*. The repository
   and the Netlify URL keep `imp-supply-simulator`.
-- **Provenance line:** the showcase and README both say MC² is a public rebuild, on synthetic
-  data, of a clinical-supply simulator built in industry. That line keeps this app from being
-  read as the original tool the résumé describes.
+- **Provenance line:** the showcase, the README and the About page all say MC² runs on
+  synthetic data, that its main case is a complex dose-titration schedule, and that it runs
+  fixed-dose protocols as well.
 - **Mark:** MC² has no drawn logo. Its mark is the name set in type, in a 40px tile with a
   10px radius, using the REINS mark's own pair: **`#0A3FD5` on `#BEE2FF`**. The tile is the
   favicon and the start of the navbar; the descriptor sits beside it in muted 12px type.

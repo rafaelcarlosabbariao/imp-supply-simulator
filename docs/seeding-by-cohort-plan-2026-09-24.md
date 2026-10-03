@@ -162,7 +162,7 @@ files have:
 | Quantity | `Qty`, `quantity`, `shipment_qty`, `in_transit_count` | yes |
 | Expected arrival | `ETA`, `eta`, `expected_arrival`, `arrival_date` | yes |
 | Ship date | `Ship_Date`, `ship_date`, `shipped_date` | no |
-| Expiry | `Expiry`, `retest_date`, `retest_date_inv`, `expiry_date` | no |
+| Expiry | `Expiry`, `retest_date`, `expiry_date` | no |
 | Lot, origin | `Lot`/`lot_id`, `Origin`/`depot_name` | no |
 
 - A shipment joins its site's in-transit queue at the start of the walk and counts in the
